@@ -354,7 +354,18 @@ type FeaturedCampaign = {
   imageSource?: string
 }
 
-type OfferDraft = Omit<CampaignOffer, 'payout' | 'action' | 'offerTypes' | 'device'> & { payout: string; offerTypes: string[]; device: string[] }
+type OfferDraft = {
+  id: string
+  name: string
+  payout: string
+  imageSource: string
+  offerTypes: string[]
+  category?: string
+  country?: string
+  device: string[]
+  description?: string
+  offerLink?: string
+}
 
 const customOffersStorageKey = 'affmine-custom-offers'
 const campaignOverridesStorageKey = 'affmine-campaign-overrides'
@@ -845,8 +856,9 @@ export default function DashboardOverview() {
     const id = offerDraft.id.trim()
     const name = offerDraft.name.trim()
     const payout = Number(offerDraft.payout)
-    const imageSource = offerDraft.imageSource.trim()
-    const offerLink = offerDraft.offerLink.trim()
+    const imageSource = (offerDraft.imageSource ?? '').trim()
+    const offerLink = (offerDraft.offerLink ?? '').trim()
+    const description = (offerDraft.description ?? '').trim()
 
     if (!/^\d+$/.test(id) || Number(id) <= 0) {
       setOfferFormError('Enter a numeric offer ID.')
@@ -856,7 +868,7 @@ export default function DashboardOverview() {
       setOfferFormError('An offer with this ID already exists.')
       return
     }
-    if (!name || !Number.isFinite(payout) || payout <= 0 || !offerDraft.description.trim() || offerDraft.device.length === 0 || !imageSource || (!editingOfferId && !offerLink)) {
+    if (!name || !Number.isFinite(payout) || payout <= 0 || !description || offerDraft.device.length === 0 || !imageSource || (!editingOfferId && !offerLink)) {
       setOfferFormError('Complete the required offer details and select at least one device.')
       return
     }
@@ -879,6 +891,9 @@ export default function DashboardOverview() {
       payout,
       imageSource,
       offerLink,
+      country: offerDraft.country ?? 'US',
+      category: offerDraft.category ?? 'E-mail Submit',
+      description,
       action: existingOffer?.action ?? 'View',
       isHot: existingOffer?.isHot ?? false,
       status: existingOffer?.status ?? 'ACTIVE',
