@@ -1,0 +1,3 @@
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "payoutMethod" TEXT;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "payoutAccount" TEXT;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "paymentPasswordHash" TEXT;

@@ -1,0 +1,567 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  username         String      @unique
+  slugPrefix      String?     @unique
+  email            String      @unique
+  googleProfilePicture String?
+  googleEmailVerified Boolean  @default(false)
+  googleEmailVerifiedAt DateTime?
+  fullName         String?
+  address           String?
+  source           String?
+  contractNumber   String?
+  telegramUsername String?
+  bkashNumber      String?
+  clickRate        Float?      @default(0)
+  commissionRate   Float?      @default(20)
+  referralCommissionRate Float  @default(5)
+  canUseSecretRedirect Boolean  @default(true)
+  payoutMethod     String?
+  payoutAccount    String?
+  paymentPasswordHash String?
+  password         String
+  botFallbackUrl   String?
+  role             UserRole    @default(PUBLISHER)
+  status           UserStatus  @default(PENDING)
+  referralCode     String?     @unique
+  referredById     String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  lastLogin        DateTime?
+  
+  linkAccounts  LinkAccount[]
+  offerVault    OfferVault[]
+  customDomains CustomDomain[]
+  landingPageTemplates    LandingPageTemplate[] @relation("TemplateCreatedBy")
+  landingPages           LandingPage[] @relation("LandingPagesCreatedBy")
+  managerPayouts         ManagerPayout[]
+  referredBy             User?                  @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals              User[]                 @relation("UserReferrals")
+  referralCommissionsEarned ReferralCommission[] @relation("ReferralCommissionReferrer")
+  referralCommissionsGenerated ReferralCommission[] @relation("ReferralCommissionReferred")
+  countryClickRates CountryClickRate[]
+  postbackConfigs         PostbackConfig[]
+  conversionLeads         ConversionLead[]
+  telegramNotification    TelegramNotification?
+  ownedSupportConversations SupportConversation[] @relation("SupportConversationManager")
+  sentSupportMessages      SupportMessage[] @relation("SupportMessageSender")
+  
+  @@map("users")
+}
+
+model CountryClickRate {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  countryCode String
+  rate        Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, countryCode])
+  @@index([countryCode])
+  @@map("country_click_rates")
+}
+
+enum UserRole {
+  MANAGER
+  PUBLISHER
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+  REJECTED
+}
+
+model LinkAccount {
+  id              String      @id @default(cuid())
+  accountName     String
+  slug            String      @unique
+  customDomainId  String?
+  customDomain    CustomDomain? @relation(fields: [customDomainId], references: [id], onDelete: SetNull)
+  offerGroupName  String?
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  isActive        Boolean     @default(true)
+
+  payoutMethod          String?
+  payoutAccount         String?
+  paymentPasswordHash   String?
+  
+  totalClicks     Int         @default(0)
+  uniqueClicks    Int         @default(0)
+  botClicks       Int         @default(0)
+  usaSecretRedirectAccumulator Int @default(0)
+  
+  clicks          Click[]
+  geoStats        GeoStat[]
+  publicDashboard PublicDashboard?
+
+  // Opposite relation fields for analytics and stats
+  dailyAnalytics   DailyAnalytics[]
+  hourlyAnalytics  HourlyAnalytics[]
+  browserStats     BrowserStat[]
+  osStats          OSStat[]
+  deviceStats      DeviceStat[]
+  referrerStats    ReferrerStat[]
+  invoices         Invoice[]
+  
+  @@unique([slug, customDomainId])
+  @@index([userId, offerGroupName])
+  @@map("link_accounts")
+}
+
+model CustomDomain {
+  id              String        @id @default(cuid())
+  domain          String        @unique
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified        Boolean       @default(false)
+  verifiedAt      DateTime?
+  sslEnabled      Boolean       @default(false)
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  linkAccounts    LinkAccount[]
+  
+  @@map("custom_domains")
+}
+
+model LandingDomainSettings {
+  id        String   @id @default("default")
+  domains   String[] @default(["weobly.com", "weebly.pro"])
+  updatedAt DateTime @updatedAt
+
+  @@map("landing_domain_settings")
+}
+
+enum OfferRotationMode {
+  PRIORITY
+  RANDOM
+}
+
+model OfferVault {
+  id              String              @id @default(cuid())
+  country         String
+  groupName       String?
+  offerUrl        String
+  isActive        Boolean             @default(true)
+  isGlobal        Boolean             @default(false)
+  isContentLocker Boolean             @default(false)
+  usaSecretRedirectEnabled Boolean    @default(false)
+  usaSecretRedirectPercentage Int      @default(50)
+  usaSecretRedirectAccumulator Int      @default(0)
+  priority        Int                 @default(100)
+  rotationMode    OfferRotationMode   @default(PRIORITY)
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId, country, isActive])
+  @@index([userId, groupName, isActive])
+  @@index([userId, isGlobal, isActive])
+  @@map("offer_vaults")
+}
+
+model PublicDashboard {
+  id              String        @id @default(cuid())
+  publicId        String        @unique
+  linkAccountId   String        @unique
+  linkAccount     LinkAccount   @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  isPrivate       Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  @@map("public_dashboards")
+}
+
+model Click {
+  id              String        @id @default(cuid())
+  linkAccountId   String
+  linkAccount     LinkAccount   @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  
+  timestamp       DateTime      @default(now())
+  clickSignature  String?
+  ipAddress       String
+  country         String?
+  region          String?
+  city            String?
+  isp             String?
+  
+  browser         String?
+  browserVersion  String?
+  os              String?
+  deviceType      String?
+  deviceBrand     String?
+  screenResolution String?
+  
+  referrer        String?
+  language        String?
+  timeZone        String?
+  userAgent       String?
+  
+  isUnique        Boolean       @default(false)
+  isBot           Boolean       @default(false)
+  botScore        Float?        @default(0)
+  botReason       String?
+  
+  createdAt       DateTime      @default(now())
+  
+  @@index([linkAccountId])
+  @@index([userAgent])
+  @@index([clickSignature])
+  @@index([clickSignature, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([userAgent, createdAt])
+  @@index([linkAccountId, clickSignature, createdAt])
+  @@index([timestamp])
+  @@index([country])
+  @@index([isUnique])
+  @@index([isBot])
+  @@map("clicks")
+}
+
+model GeoStat {
+  id              String        @id @default(cuid())
+  linkAccountId   String
+  linkAccount     LinkAccount   @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  
+  country         String
+  countryCode     String
+  clicks          Int           @default(0)
+  uniqueClicks    Int           @default(0)
+  botClicks       Int           @default(0)
+  
+  updatedAt       DateTime      @updatedAt
+  
+  @@unique([linkAccountId, country])
+  @@map("geo_stats")
+}
+
+model DailyAnalytics {
+  id              String        @id @default(cuid())
+  linkAccountId   String
+  linkAccount     LinkAccount   @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  
+  date            DateTime
+  clicks          Int           @default(0)
+  uniqueClicks    Int           @default(0)
+  botClicks       Int           @default(0)
+  
+  @@unique([linkAccountId, date])
+  @@map("daily_analytics")
+}
+
+model HourlyAnalytics {
+  id              String        @id @default(cuid())
+  linkAccountId   String
+  linkAccount     LinkAccount   @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  
+  hour            DateTime
+  clicks          Int           @default(0)
+  uniqueClicks    Int           @default(0)
+  botClicks       Int           @default(0)
+  
+  @@unique([linkAccountId, hour])
+  @@map("hourly_analytics")
+}
+
+model BrowserStat {
+  id              String        @id @default(cuid())
+  linkAccountId   String
+  linkAccount     LinkAccount   @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  
+  browser         String
+  clicks          Int           @default(0)
+  uniqueClicks    Int           @default(0)
+  botClicks       Int           @default(0)
+  
+  @@unique([linkAccountId, browser])
+  @@map("browser_stats")
+}
+
+model OSStat {
+  id              String        @id @default(cuid())
+  linkAccountId   String
+  linkAccount     LinkAccount   @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  
+  os              String
+  clicks          Int           @default(0)
+  uniqueClicks    Int           @default(0)
+  botClicks       Int           @default(0)
+  
+  @@unique([linkAccountId, os])
+  @@map("os_stats")
+}
+
+model DeviceStat {
+  id              String        @id @default(cuid())
+  linkAccountId   String
+  linkAccount     LinkAccount   @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  
+  deviceType      String
+  clicks          Int           @default(0)
+  uniqueClicks    Int           @default(0)
+  botClicks       Int           @default(0)
+  
+  @@unique([linkAccountId, deviceType])
+  @@map("device_stats")
+}
+
+model ReferrerStat {
+  id              String        @id @default(cuid())
+  linkAccountId   String
+  linkAccount     LinkAccount   @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  
+  referrer        String
+  clicks          Int           @default(0)
+  uniqueClicks    Int           @default(0)
+  botClicks       Int           @default(0)
+  
+  @@unique([linkAccountId, referrer])
+  @@map("referrer_stats")
+}
+
+model LandingPageTemplate {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?
+  thumbnail       String?
+  htmlContent     String        // Template HTML structure
+  customText      String?       // Custom text to include with link when copied
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  createdBy       String
+  user            User          @relation("TemplateCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  
+  landingPages    LandingPage[]
+  
+  @@index([isActive])
+  @@map("landing_page_templates")
+}
+
+model LandingPage {
+  id              String        @id @default(cuid())
+  subdomain       String        @unique
+  trackingUrl     String
+  templateId      String
+  template        LandingPageTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User          @relation("LandingPagesCreatedBy", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Customization
+  headline        String?
+  description     String?
+  imageUrl        String?
+  primaryColor    String        @default("#06B6D4")  // Cyan
+  secondaryColor  String        @default("#8B5CF6") // Violet
+  buttonText      String        @default("Get Started")
+  
+  isPublished     Boolean       @default(false)
+  publishedAt     DateTime?
+  
+  totalClicks     Int           @default(0)
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  @@index([userId])
+  @@index([subdomain])
+  @@index([isPublished])
+  @@map("landing_pages")
+}
+
+model Invoice {
+  id                   String      @id @default(cuid())
+  invoiceNumber        String      @unique
+  linkAccountId        String
+  linkAccount          LinkAccount @relation(fields: [linkAccountId], references: [id], onDelete: Cascade)
+  qualifiedClicks      Int
+  clickRate            Float
+  totalEarning         Float
+  payoutMethod         String?
+  payoutAccount        String?
+  paymentReference     String?
+  isPaid               Boolean     @default(false)
+  paidAt               DateTime?
+  createdAt            DateTime    @default(now())
+  managerPayouts       ManagerPayoutInvoice[]
+  referralCommission   ReferralCommission?
+
+  @@index([linkAccountId, createdAt])
+  @@map("invoices")
+}
+
+model ManagerPayout {
+  id               String               @id @default(cuid())
+  payoutNumber     String               @unique
+  managerId        String
+  manager          User                 @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  totalEarning     Float
+  invoiceCount     Int
+  payoutMethod     String?
+  payoutAccount    String?
+  paymentReference String?
+  isPaid           Boolean              @default(false)
+  paidAt           DateTime?
+  createdAt        DateTime             @default(now())
+  invoices         ManagerPayoutInvoice[]
+  sourceReferralCommissions ReferralCommission[] @relation("ReferralCommissionSourcePayout")
+  paidReferralCommissions   ReferralCommission[] @relation("ReferralCommissionPaidPayout")
+
+  @@index([managerId, createdAt])
+  @@map("manager_payouts")
+}
+
+model ManagerPayoutInvoice {
+  payoutId  String
+  invoiceId String
+  payout    ManagerPayout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  invoice   Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@id([payoutId, invoiceId])
+  @@unique([invoiceId])
+  @@map("manager_payout_invoices")
+}
+
+model ReferralCommission {
+  id                    String         @id @default(cuid())
+  referrerId            String
+  referrer              User           @relation("ReferralCommissionReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUserId        String
+  referredUser          User           @relation("ReferralCommissionReferred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  invoiceId             String         @unique
+  invoice               Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sourcePayoutId        String?
+  sourcePayout          ManagerPayout? @relation("ReferralCommissionSourcePayout", fields: [sourcePayoutId], references: [id], onDelete: SetNull)
+  paidWithPayoutId      String?
+  paidWithPayout        ManagerPayout? @relation("ReferralCommissionPaidPayout", fields: [paidWithPayoutId], references: [id], onDelete: SetNull)
+  publisherPayoutAmount Float
+  commissionRate        Float          @default(5)
+  amount                Float
+  paidAt                DateTime?
+  createdAt             DateTime       @default(now())
+
+  @@index([referrerId, paidAt])
+  @@index([referredUserId, createdAt])
+  @@map("referral_commissions")
+}
+
+enum PostbackProvider {
+  AFFMINE
+  ADBLUMEDIA
+}
+
+model PostbackConfig {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider    PostbackProvider
+  label       String
+  token       String           @unique
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  leads       ConversionLead[]
+
+  @@unique([userId, provider])
+  @@index([token, isActive])
+  @@map("postback_configs")
+}
+
+model ConversionLead {
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postbackId     String
+  postback       PostbackConfig @relation(fields: [postbackId], references: [id], onDelete: Cascade)
+  payout         Float?
+  sub1           String?
+  sub2           String?
+  sub3           String?
+  sub4           String?
+  createdAt      DateTime       @default(now())
+
+  @@index([userId, createdAt])
+  @@index([postbackId, createdAt])
+  @@map("conversion_leads")
+}
+
+model TelegramNotification {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channelId         String
+  botTokenEncrypted String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("telegram_notifications")
+}
+
+model SupportConversation {
+  id          String           @id @default(cuid())
+  managerId   String           @unique
+  manager     User             @relation("SupportConversationManager", fields: [managerId], references: [id], onDelete: Cascade)
+  status      SupportStatus    @default(OPEN)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  messages    SupportMessage[]
+
+  @@index([status, updatedAt])
+  @@map("support_conversations")
+}
+
+model SupportMessage {
+  id             String              @id @default(cuid())
+  conversationId String
+  conversation   SupportConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User                @relation("SupportMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  body           String
+  createdAt      DateTime            @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("support_messages")
+}
+
+model ContactInquiry {
+  id        String                @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String
+  message   String
+  status    ContactInquiryStatus  @default(OPEN)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  @@index([status, createdAt])
+  @@map("contact_inquiries")
+}
+
+enum SupportStatus {
+  OPEN
+  RESOLVED
+}
+
+enum ContactInquiryStatus {
+  OPEN
+  RESOLVED
+}

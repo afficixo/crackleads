@@ -1,0 +1,15 @@
+{
+  "name": "Afficix",
+  "short_name": "Afficix",
+  "icons": [
+    {
+      "src": "/afficix_favicon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "theme_color": "#eef2f7",
+  "background_color": "#eef2f7",
+  "display": "standalone"
+}

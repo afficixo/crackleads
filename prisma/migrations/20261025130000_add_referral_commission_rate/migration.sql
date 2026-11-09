@@ -1,0 +1,2 @@
+ALTER TABLE "users"
+ADD COLUMN "referralCommissionRate" DOUBLE PRECISION NOT NULL DEFAULT 5;
