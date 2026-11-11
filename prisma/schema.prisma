@@ -16,11 +16,26 @@ model User {
   googleEmailVerified Boolean  @default(false)
   googleEmailVerifiedAt DateTime?
   fullName         String?
+  firstName        String?
+  lastName         String?
   address           String?
+  city             String?
+  state            String?
+  zipCode          String?
+  country          String?
+  companyName      String?
+  companyAddress   String?
+  companyCity      String?
+  companyState     String?
+  companyZipCode   String?
+  companyCountry   String?
   source           String?
   contractNumber   String?
   telegramUsername String?
   bkashNumber      String?
+  publisherNumber  Int?        @unique
+  leadNotifications Boolean    @default(true)
+  campaignEmailUpdates Boolean @default(true)
   clickRate        Float?      @default(0)
   commissionRate   Float?      @default(20)
   referralCommissionRate Float  @default(5)
@@ -53,9 +68,43 @@ model User {
   conversionLeads         ConversionLead[]
   telegramNotification    TelegramNotification?
   ownedSupportConversations SupportConversation[] @relation("SupportConversationManager")
+  publisherSupportConversation SupportConversation? @relation("SupportConversationPublisher")
   sentSupportMessages      SupportMessage[] @relation("SupportMessageSender")
   
   @@map("users")
+}
+
+model OfferApplication {
+  id                 String                 @id @default(cuid())
+  campaignId         String
+  campaignName       String
+  campaignPayout     Float
+  campaignCountry    String
+  campaignCategory   String?
+  campaignImage      String?
+  publisherId        String
+  publisherUsername  String
+  publisherEmail     String?
+  status             OfferApplicationStatus @default(PENDING)
+  reviewNote         String?
+  reviewedById       String?
+  reviewedByUsername String?
+  noticeDismissed    Boolean                @default(false)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  reviewedAt         DateTime?
+
+  @@unique([publisherId, campaignId])
+  @@index([status, createdAt])
+  @@index([publisherId, status])
+  @@index([publisherId, status, noticeDismissed])
+  @@map("offer_applications")
+}
+
+enum OfferApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model CountryClickRate {
@@ -518,14 +567,17 @@ model TelegramNotification {
 
 model SupportConversation {
   id          String           @id @default(cuid())
-  managerId   String           @unique
-  manager     User             @relation("SupportConversationManager", fields: [managerId], references: [id], onDelete: Cascade)
+  publisherId String           @unique
+  publisher   User             @relation("SupportConversationPublisher", fields: [publisherId], references: [id], onDelete: Cascade)
+  managerId   String?
+  manager     User?            @relation("SupportConversationManager", fields: [managerId], references: [id], onDelete: SetNull)
   status      SupportStatus    @default(OPEN)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   messages    SupportMessage[]
 
   @@index([status, updatedAt])
+  @@index([managerId, updatedAt])
   @@map("support_conversations")
 }
 

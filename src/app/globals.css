@@ -186,25 +186,23 @@ body {
 }
 
 .home-hero-overlay {
-  background-color: rgba(15, 23, 42, 0.28);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(15, 23, 42, 0.42) 42%, rgba(15, 23, 42, 0.72) 100%),
+    rgba(15, 23, 42, 0.2);
 }
 
 .home-hero-content {
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease,
-    visibility 0s linear 0s;
+  transition: opacity 180ms ease;
 }
 
 .public-site[data-mobile-menu-open="true"] .home-hero-content {
-  visibility: hidden;
-  opacity: 0;
+  /* Keep hero visible under Affmine-style right dropdown */
   pointer-events: none;
-  transform: translateY(-8px);
-  transition:
-    opacity 160ms ease,
-    transform 160ms ease,
-    visibility 0s linear 160ms;
+}
+
+.home-hero-actions-shell {
+  width: 100%;
+  max-width: 28rem;
 }
 
 .page-load-overlay {
@@ -286,7 +284,6 @@ body {
   .home-hero-content,
   .public-site[data-mobile-menu-open="true"] .home-hero-content {
     transition-duration: 0ms;
-    transition-delay: 0ms;
   }
 
   .page-load-spinner span::before {
@@ -3298,8 +3295,10 @@ html:not(.dark) .auth-site {
   color: #f1f5f3 !important;
 }
 
-html:not(.dark) .public-site.legal-light-theme {
+html:not(.dark) .public-site.legal-light-theme,
+html:not(.dark) .public-site.public-site-light {
   background: #fff !important;
+  color: #495057 !important;
 }
 
 html:not(.dark) .public-site [class~="text-white"],

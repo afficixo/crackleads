@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUserFromToken, getTokenFromCookie, normalizeEffectiveUserRole } from '@/lib/auth'
 import { getCorsHeaders } from '@/config/cors'
+import { ensurePublisherNumber } from '@/lib/db/user'
 
 export async function GET(request: Request) {
   try {
@@ -34,6 +35,9 @@ export async function GET(request: Request) {
     }
 
     const effectiveRole = normalizeEffectiveUserRole(user)
+    const publisherNumber = user.role === 'PUBLISHER'
+      ? (user.publisherNumber ?? await ensurePublisherNumber(user.id))
+      : user.publisherNumber ?? null
 
     return NextResponse.json({
       id: user.id,
@@ -41,6 +45,7 @@ export async function GET(request: Request) {
       role: effectiveRole,
       email: user.email,
       fullName: user.fullName,
+      publisherNumber,
       createdAt: user.createdAt,
       lastLogin: user.lastLogin,
       status: user.status,

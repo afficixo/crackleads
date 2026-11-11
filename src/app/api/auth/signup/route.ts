@@ -49,10 +49,12 @@ export async function POST(request: Request) {
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
     const password = typeof body?.password === 'string' ? body.password.trim() : ''
     const referralCode = typeof body?.referralCode === 'string' ? body.referralCode.trim().toUpperCase() : ''
+    const telegramUsername = typeof body?.telegramUsername === 'string' ? body.telegramUsername.trim() : ''
+    const source = typeof body?.source === 'string' ? body.source.trim() : ''
     const captchaPrompt = typeof body?.captchaPrompt === 'string' ? body.captchaPrompt.trim() : ''
     const captchaAnswer = typeof body?.captchaAnswer === 'number' ? body.captchaAnswer : Number(body?.captchaAnswer)
 
-    if (!fullName || !address || !contractNumber || !username || !email || !password) {
+    if (!fullName || !address || !username || !email || !password) {
       return NextResponse.json(
         { error: 'All fields are required for publisher signup' },
         { status: 400, headers: getCorsHeaders(origin) }
@@ -131,6 +133,8 @@ export async function POST(request: Request) {
       ...(fullName ? { fullName } : {}),
       ...(address ? { address } : {}),
       ...(contractNumber ? { contractNumber } : {}),
+      ...(telegramUsername ? { telegramUsername } : {}),
+      ...(source ? { source } : {}),
     }
 
     const user = await createUserSafe(createData)

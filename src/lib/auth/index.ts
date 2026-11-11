@@ -18,6 +18,7 @@ export type AuthUser = {
   email?: string | null
   fullName?: string | null
   status?: AccountStatus | null
+  publisherNumber?: number | null
   createdAt?: Date
   lastLogin?: Date | null
   googleProfilePicture?: string | null
@@ -99,6 +100,7 @@ export async function getUserFromToken(token: string): Promise<AuthUser | null> 
           role: true,
           status: true,
           fullName: true,
+          publisherNumber: true,
           createdAt: true,
           lastLogin: true,
           googleProfilePicture: true,
@@ -116,6 +118,7 @@ export async function getUserFromToken(token: string): Promise<AuthUser | null> 
       username,
       role: username === MANAGER_USERNAME ? 'MANAGER' : 'PUBLISHER',
       status: 'ACTIVE',
+      publisherNumber: null,
     }
   }
 
@@ -128,6 +131,7 @@ export async function getUserFromToken(token: string): Promise<AuthUser | null> 
       role: true,
       status: true,
       fullName: true,
+      publisherNumber: true,
       createdAt: true,
       lastLogin: true,
       googleProfilePicture: true,
