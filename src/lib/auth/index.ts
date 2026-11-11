@@ -1,7 +1,11 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '@/lib/db/prisma'
-import { getManagerEnvCredentials, isManagerEnvUsername } from '@/lib/manager-auth'
+import {
+  ensureManagerDbUser,
+  getManagerEnvCredentials,
+  isManagerEnvUsername,
+} from '@/lib/manager-auth'
 import type { UserRole } from '@/types'
 
 const JWT_SECRET = process.env.JWT_SECRET || ''
@@ -101,29 +105,7 @@ export async function getUserFromToken(token: string): Promise<AuthUser | null> 
     }
 
     try {
-      const existing = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { username: { equals: managerUsername, mode: 'insensitive' } },
-            { email: { equals: managerUsername, mode: 'insensitive' } },
-            { email: { equals: `${managerUsername}@example.com`, mode: 'insensitive' } },
-          ],
-        },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          role: true,
-          status: true,
-          fullName: true,
-          publisherNumber: true,
-          createdAt: true,
-          lastLogin: true,
-          googleProfilePicture: true,
-          googleEmailVerified: true,
-          googleEmailVerifiedAt: true,
-        },
-      })
+      const existing = await ensureManagerDbUser()
       if (existing) {
         return { ...existing, role: 'MANAGER' } as AuthUser
       }

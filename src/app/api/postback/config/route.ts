@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCorsHeaders } from '@/config/cors'
-import { getTokenFromCookie, getUserFromToken } from '@/lib/auth'
+import { getTokenFromCookie, getUserFromToken, normalizeEffectiveUserRole } from '@/lib/auth'
 import {
   buildMarketplacePostbackUrl,
   ensureMarketplacePostbackConfig,
@@ -49,11 +49,12 @@ export async function GET(request: Request) {
 
     const appOrigin = resolveAppOrigin(request)
     const { prisma } = await import('@/lib/db/prisma')
+    const role = normalizeEffectiveUserRole(user) || user.role
 
-    if (user.role === 'MANAGER') {
+    if (role === 'MANAGER') {
       const config = await ensureMarketplacePostbackConfig(user.id)
       return NextResponse.json({
-        role: 'MANAGER',
+        role,
         provider: config.provider,
         isActive: config.isActive,
         token: config.token,
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
     const publisher = publisherRows[0]
     const earnings = await sumPublisherEarnings(user.id)
     return NextResponse.json({
-      role: 'PUBLISHER',
+      role,
       isActive: publisher?.globalPostbackEnabled !== false,
       url: publisher?.globalPostbackUrl || '',
       earningsSinceLastInvoice: earnings,
@@ -121,7 +122,8 @@ export async function PATCH(request: Request) {
 
     const { prisma } = await import('@/lib/db/prisma')
 
-    if (user.role === 'MANAGER') {
+    const role = normalizeEffectiveUserRole(user) || user.role
+    if (role === 'MANAGER') {
       const config = await ensureMarketplacePostbackConfig(user.id)
       const updated = await prisma.postbackConfig.update({
         where: { id: config.id },

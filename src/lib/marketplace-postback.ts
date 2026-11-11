@@ -22,10 +22,36 @@ export function buildMarketplacePostbackUrl(origin: string, token: string): stri
 }
 
 export async function ensureMarketplacePostbackConfig(managerId: string) {
+  let userId = managerId
+
+  // Sessions minted while the DB was empty use `local-{username}` ids that
+  // cannot satisfy the postback_configs.userId foreign key.
+  if (userId.startsWith('local-')) {
+    const { ensureManagerDbUser } = await import('@/lib/manager-auth')
+    const manager = await ensureManagerDbUser()
+    if (!manager) {
+      throw new Error('Manager account is not initialized. Sign out and sign in again.')
+    }
+    userId = manager.id
+  } else {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    })
+    if (!user) {
+      const { ensureManagerDbUser } = await import('@/lib/manager-auth')
+      const manager = await ensureManagerDbUser()
+      if (!manager) {
+        throw new Error('Manager account is not initialized. Sign out and sign in again.')
+      }
+      userId = manager.id
+    }
+  }
+
   const existing = await prisma.postbackConfig.findUnique({
     where: {
       userId_provider: {
-        userId: managerId,
+        userId,
         provider: 'MARKETPLACE',
       },
     },
@@ -35,23 +61,30 @@ export async function ensureMarketplacePostbackConfig(managerId: string) {
   try {
     return await prisma.postbackConfig.create({
       data: {
-        userId: managerId,
+        userId,
         provider: 'MARKETPLACE',
         label: 'Main marketplace inbound',
         token: createPostbackToken(),
         isActive: true,
       },
     })
-  } catch {
+  } catch (error) {
+    console.error('ensureMarketplacePostbackConfig create failed:', error)
     const raced = await prisma.postbackConfig.findUnique({
       where: {
         userId_provider: {
-          userId: managerId,
+          userId,
           provider: 'MARKETPLACE',
         },
       },
     })
-    if (!raced) throw new Error('Unable to create marketplace postback config')
+    if (!raced) {
+      throw new Error(
+        error instanceof Error
+          ? `Unable to create marketplace postback config: ${error.message}`
+          : 'Unable to create marketplace postback config',
+      )
+    }
     return raced
   }
 }
