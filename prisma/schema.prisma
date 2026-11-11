@@ -129,6 +129,25 @@ model CampaignOffer {
   @@map("campaign_offers")
 }
 
+/// Publisher tracking-link clicks (before marketplace conversion postback).
+model OfferClick {
+  id               String   @id @default(cuid())
+  publisherNumber  Int
+  publisherUserId  String?
+  offerId          String
+  sub1             String?
+  sub2             String?
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime @default(now())
+
+  @@index([publisherUserId, createdAt])
+  @@index([publisherNumber, createdAt])
+  @@index([offerId, createdAt])
+  @@index([createdAt])
+  @@map("offer_clicks")
+}
+
 enum OfferApplicationStatus {
   PENDING
   APPROVED
@@ -543,6 +562,7 @@ model ReferralCommission {
 enum PostbackProvider {
   AFFMINE
   ADBLUMEDIA
+  MARKETPLACE
 }
 
 model PostbackConfig {
@@ -562,21 +582,37 @@ model PostbackConfig {
   @@map("postback_configs")
 }
 
+/// Inbound marketplace conversion credited to a publisher for one of our offers.
 model ConversionLead {
   id             String         @id @default(cuid())
   userId         String
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   postbackId     String
   postback       PostbackConfig @relation(fields: [postbackId], references: [id], onDelete: Cascade)
+  offerId        String?
+  campaignId     String?
+  campaignName   String?
   payout         Float?
+  country        String?
+  city           String?
+  device         String?
+  os             String?
+  userAgent      String?
+  status         String?
+  externalTxId   String?
+  ipAddress      String?
   sub1           String?
   sub2           String?
   sub3           String?
   sub4           String?
+  occurredAt     DateTime?
+  externalKey    String?        @unique
   createdAt      DateTime       @default(now())
 
   @@index([userId, createdAt])
   @@index([postbackId, createdAt])
+  @@index([offerId, createdAt])
+  @@index([externalTxId])
   @@map("conversion_leads")
 }
 

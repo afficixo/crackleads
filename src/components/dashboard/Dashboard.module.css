@@ -539,7 +539,8 @@
   font-family: 'Montserrat', sans-serif;
   font-size: 18px;
   font-weight: 400;
-  line-height: 1.3;
+  letter-spacing: -0.36px;
+  line-height: normal;
   text-transform: uppercase;
 }
 
@@ -564,19 +565,48 @@
   position: relative;
 }
 
-.reportRangeInput {
-  display: inline-flex;
-  min-width: 220px;
+.reportRangeInput,
+input.reportRangeInput {
+  display: block;
+  width: 183px;
+  min-width: 183px;
+  height: 34px;
   min-height: 34px;
-  align-items: center;
-  border: 1px solid #d5dadd;
+  border: 1px solid #bdc4c9;
   border-radius: 3px;
-  padding: 0 12px;
+  padding: 6px 12px 6px 10px;
   background: #fff;
-  color: #58666e;
-  font: inherit;
-  font-size: 12px;
+  box-shadow: inset 0 1px 0 #f1f0f1;
+  font: 400 14px / 20px Roboto, sans-serif;
   cursor: pointer;
+}
+
+:global(html:not(.dark)) .reportRangeInput,
+:global(html:not(.dark)) input.reportRangeInput {
+  color: #555 !important;
+  -webkit-text-fill-color: #555 !important;
+}
+
+.reportRangeInput:focus {
+  outline: none;
+  border-color: #aab4bb;
+}
+
+.bigchart {
+  min-height: 280px;
+}
+
+.displayTable {
+  width: 100%;
+}
+
+.reportInput_daily,
+.reportInput_campaign,
+.reportInput_geo,
+.reportInput_tool,
+.reportInput_subid,
+.reportInput_conversions {
+  letter-spacing: 0;
 }
 
 .reportDatePopover {
@@ -850,32 +880,65 @@
   border-bottom: 1px solid #eceeef;
 }
 
+/* Affmine `.panel.panel-default.wide` on reports */
+.reportPanel.dataPage {
+  position: relative;
+  min-height: 0;
+  margin: 0 0 10px;
+  padding: 10px 0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: none;
+  color: #58666e;
+  font: 400 13px / 22.1px Roboto, sans-serif;
+}
+
 .reportHeading {
-  display: flex;
-  min-height: 34px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  position: relative;
+  display: block;
+  min-height: 27px;
+  margin: 0;
+  padding: 0 15px 5px;
+  color: #58666e;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 22.1px;
+  text-transform: uppercase;
 }
 
 .reportHeading h2 {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+  display: inline;
+  margin: 0;
+  color: #58666e;
+  font: inherit;
+  text-transform: uppercase;
 }
 
+.reportHeading h2 i,
 .reportHeading h2 svg {
-  color: #667780;
+  display: inline-block;
+  width: 13px;
+  color: #58666e;
+  font-size: 13px;
+  line-height: 13px;
+  vertical-align: baseline;
 }
 
 .reportTools {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  position: absolute;
+  top: 13px;
+  right: 16px;
+  z-index: 2;
+  display: block;
+  width: auto;
+  margin: 0;
+  padding: 0 0 0 40px;
+  list-style: none;
 }
 
 .reportTools select,
-.reportTools input,
 .listTools input {
   height: 30px;
   min-width: 135px;
@@ -888,18 +951,60 @@
 }
 
 .reportTools input,
+.reportTools input[type='text'],
+.reportTools input[type='search'] {
+  display: block;
+  width: 135px;
+  min-width: 135px;
+  height: 34px;
+  border: 1px solid #bdc4c9;
+  border-radius: 3px;
+  padding: 6px 12px 6px 10px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 #f1f0f1;
+  font: 600 14px / 20px Roboto, sans-serif;
+}
+
+:global(html:not(.dark)) .reportTools input,
+:global(html:not(.dark)) .reportTools input[type='text'],
+:global(html:not(.dark)) .reportTools input[type='search'] {
+  color: #555 !important;
+  -webkit-text-fill-color: #555 !important;
+}
+
+.reportTools input::placeholder {
+  color: #999;
+  font-weight: 400;
+  opacity: 1;
+  -webkit-text-fill-color: #999;
+}
+
 .listTools input {
   width: 150px;
+}
+
+.reportBody {
+  padding: 10px 0;
+}
+
+.reportTableWrap {
+  position: relative;
+  overflow: auto;
 }
 
 .reportChart {
   position: relative;
   display: block;
   width: 100%;
-  height: 280px;
-  margin-top: 12px;
-  border-top: 1px solid #eceeef;
-  padding: 12px 0 0;
+  height: 344px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.reportPanel .bigchart {
+  min-height: 344px;
+  height: 344px;
 }
 
 .reportYAxis {
@@ -976,54 +1081,68 @@
 
 .sortableHeader {
   position: relative;
-  padding-right: 20px !important;
+  background-image: url('/affmine/datatables/sort_both.png');
+  background-position: 100% 50%;
+  background-repeat: no-repeat;
+  cursor: pointer;
 }
 
 .sortableHeader::after {
-  position: absolute;
-  top: 50%;
-  right: 7px;
-  color: #c4c9cc;
-  content: "↕";
-  font-size: 11px;
-  transform: translateY(-50%);
+  content: none;
 }
 
 .reportPagination {
-  display: flex;
-  min-height: 38px;
-  align-items: center;
-  justify-content: space-between;
-  color: #606a70;
-  font-size: 11px;
+  display: block;
+  min-height: 32px;
+  color: #333;
+  font: 400 13px / 22.1px Roboto, sans-serif;
 }
 
-.reportPagination > div {
-  display: flex;
+.reportPaginationInfo {
+  float: left;
+  padding: 10px 0 0 10px;
+  color: #333;
+  font: 400 13px / 22.1px Roboto, sans-serif;
+}
+
+.reportPaginationControls {
+  float: right;
+  padding: 3px 10px 0 0;
+  text-align: right;
+}
+
+.reportPaginationControls::after,
+.reportPagination::after {
+  display: table;
+  clear: both;
+  content: '';
 }
 
 .reportPagination button {
-  min-width: 32px;
-  height: 29px;
-  border: 1px solid #ddd;
-  border-right: 0;
-  padding: 0 9px;
-  background: #fff;
-  color: #438fc3;
-  font: inherit;
-}
-
-.reportPagination button:last-child {
-  border-right: 1px solid #ddd;
+  display: inline-block;
+  min-width: 0;
+  height: auto;
+  margin: 0 0 0 2px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2.6px 13px;
+  background: transparent;
+  color: #333;
+  font: 400 13px / 22.1px Roboto, sans-serif;
+  text-align: center;
+  cursor: default;
 }
 
 .reportPagination button:disabled {
-  color: #aaa;
+  color: #333;
+  opacity: 1;
+  cursor: default;
 }
 
 .reportPagination .campaignPageActive {
-  background: #438fc3;
-  color: #fff;
+  border: 1px solid transparent;
+  background: #ddd;
+  color: #333;
 }
 
 .pagePrimaryButton {
@@ -3877,7 +3996,7 @@
   margin-top: 12px;
   border-collapse: collapse;
   color: #58666e;
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
 }
 
@@ -3888,15 +4007,84 @@
   white-space: nowrap;
 }
 
+.reportPanel .dataTable {
+  width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #58666e;
+  font: 400 13px / 22.1px Roboto, sans-serif;
+}
+
+.reportPanel .dataTable thead th {
+  border: 0;
+  border-bottom: 1px solid #ccc;
+  padding: 16px 18px;
+  background-color: transparent;
+  background-image: url('/affmine/datatables/sort_both.png');
+  background-position: 100% 50%;
+  background-repeat: no-repeat;
+  color: #37363e;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20.4px;
+  text-align: left;
+  text-transform: uppercase;
+  vertical-align: bottom;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.reportPanel .dataTable tfoot th {
+  border: 0;
+  border-top: 1px solid #ccc;
+  padding: 5px 0;
+  background: transparent;
+  color: #58666e;
+  font: 700 12px / 20.4px Roboto, sans-serif;
+  text-align: left;
+  text-transform: uppercase;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.reportPanel .dataTable tfoot th:first-child {
+  padding: 5px 10px;
+}
+
+.reportPanel .dataTable tbody td {
+  border: 0;
+  padding: 5px 2px;
+  background: transparent;
+  color: #58666e;
+  font: 400 13px / 22.1px Roboto, sans-serif;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.reportPanel .dataTable tbody td:first-child {
+  padding: 5px 10px;
+}
+
+.reportPanel .dataTable tbody tr.rowOdd {
+  background: #f9f9f9;
+}
+
+.reportPanel .dataTable tbody tr.rowEven {
+  background: #fff;
+}
+
 .dataTable thead th {
-  background: #f7f8f9;
+  background-color: #f7f8f9;
   color: #4a5156;
   font-weight: 600;
   text-transform: uppercase;
 }
 
 .dataTable .dataTotal {
-  background: #fbfbfb;
+  background: transparent;
 }
 
 .dataTable .dataTotal th,
@@ -3904,10 +4092,68 @@
   font-weight: 700;
 }
 
-.dataTable tbody tr:last-child:not(.dataTotal) td {
-  padding: 24px 8px;
+.dataTable tbody tr.dataEmpty td {
+  padding: 24px 8px !important;
   color: #737d82;
   text-align: center;
+}
+
+.reportCampaignCell {
+  white-space: nowrap;
+}
+
+.reportCampaignLink {
+  color: #58666e;
+  font: 400 13px / 22.1px Roboto, sans-serif;
+  text-decoration: none;
+}
+
+.reportCampaignLink:hover {
+  color: #58666e;
+  text-decoration: underline;
+}
+
+.reportCampaignLink b {
+  font-weight: 600;
+}
+
+.reportFlag {
+  display: inline;
+  width: 25px;
+  height: 25px;
+  margin: 0;
+  border-radius: 0;
+  vertical-align: middle;
+}
+
+.reportFlagImg {
+  display: inline;
+  width: 25px;
+  height: 25px;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.reportEstNote {
+  margin: 0 0 20px;
+  color: #58666e;
+  font: 400 13px / 22.1px Roboto, sans-serif;
+}
+
+.reportEstNote small {
+  font-size: 85%;
+}
+
+.reportStatusCredited {
+  color: green;
+}
+
+.reportPanel .dataTable tbody tr.dataEmpty td,
+.reportPanel .dataTable tbody td.dataTablesEmpty {
+  padding: 8px 10px !important;
+  color: #58666e;
+  text-align: left;
+  vertical-align: top;
 }
 
 .dataPageFooter {
@@ -5736,6 +5982,99 @@ a.offerAction {
 .campaignUpdateEmpty {
   color: #737d82;
   text-align: center;
+}
+
+/* Affmine dashboard `.panel.panel-widget.wide` Conversions feed */
+.conversionsPanel {
+  display: flex;
+  height: 500px;
+  min-height: 500px;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 0 0 10px;
+  padding: 10px 0;
+}
+
+.conversionsPanel h2 {
+  flex: 0 0 27.1px;
+  margin: 0;
+  padding: 0 15px 5px;
+  color: #58666e;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 22.1px;
+  text-transform: uppercase;
+}
+
+.conversionsPanel h2 i {
+  margin-right: 4px;
+  color: #58666e;
+}
+
+.conversionsScroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: scroll;
+  padding: 10px 0;
+}
+
+.conversionsScroll::-webkit-scrollbar {
+  width: 15px;
+}
+
+.conversionsTable {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  color: #58666e;
+  font: 400 13px / 22.1px Roboto, sans-serif;
+}
+
+.conversionsTable td {
+  border-top: 1px solid #ddd;
+  padding: 10px;
+  color: #58666e;
+  font: 400 13px / 22.1px Roboto, sans-serif;
+  vertical-align: top;
+}
+
+.conversionsTable tr:hover td {
+  background: #f5f5f5;
+}
+
+.conversionsTable b {
+  font-weight: 600;
+}
+
+.colorAdd {
+  color: #25b10d;
+  font-weight: 600;
+}
+
+.conversionCampaignLink {
+  color: #58666e;
+  text-decoration: none;
+}
+
+.conversionCampaignLink:hover {
+  text-decoration: underline;
+}
+
+.feedFlag {
+  display: inline;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.feedFlagImg {
+  display: inline;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  vertical-align: middle;
 }
 
 .emptyConversions {

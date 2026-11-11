@@ -44,11 +44,12 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Tooltip,
   Legend,
   Filler,
 } from 'chart.js'
-import { Line } from 'react-chartjs-2'
+import { Bar } from 'react-chartjs-2'
 import {
   bootIntercomMessenger,
   hasIntercomApp,
@@ -76,48 +77,82 @@ import {
 } from '@/lib/tracking'
 import styles from './Dashboard.module.css'
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
 
-function ReportLineChart({ labels }: { labels: string[] }) {
-  const zeros = labels.map(() => 0)
+/** Affmine Daily Reports only — Chart.js grouped bar (`#canvas` in `#container`). */
+function ReportDailyBarChart({
+  labels,
+  clicks,
+  conversions,
+  revenue,
+}: {
+  labels: string[]
+  clicks?: number[]
+  conversions?: number[]
+  revenue?: number[]
+}) {
+  const zero = labels.map(() => 0)
+  const series = [
+    ...(clicks?.length ? clicks : zero),
+    ...(conversions?.length ? conversions : zero),
+    ...(revenue?.length ? revenue : zero),
+  ]
+  const peak = Math.max(3, ...series)
   return (
-    <Line
+    <Bar
       data={{
         labels,
         datasets: [
           {
             label: 'Clicks',
-            data: zeros,
-            borderColor: '#3498db',
-            backgroundColor: 'rgba(52, 152, 219, 0.08)',
-            pointRadius: 3,
-            tension: 0.15,
+            data: clicks?.length ? clicks : zero,
+            backgroundColor: '#9da2a8',
+            borderColor: '#9da2a8',
+            borderWidth: 0,
           },
           {
             label: 'Conversions',
-            data: zeros,
-            borderColor: '#60ed32',
-            backgroundColor: 'transparent',
-            pointRadius: 3,
-            tension: 0.15,
+            data: conversions?.length ? conversions : zero,
+            backgroundColor: '#9bd5f7',
+            borderColor: '#9bd5f7',
+            borderWidth: 0,
           },
           {
             label: 'Revenue',
-            data: zeros,
-            borderColor: '#3d464d',
-            backgroundColor: 'transparent',
-            pointRadius: 3,
-            tension: 0.15,
+            data: revenue?.length ? revenue : zero,
+            backgroundColor: '#9df28a',
+            borderColor: '#9df28a',
+            borderWidth: 0,
           },
         ],
       }}
       options={{
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        animation: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { boxWidth: 42, boxHeight: 12, color: '#68737a', font: { size: 11 } },
+          },
+          tooltip: { mode: 'index', intersect: false },
+        },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#7a858b', font: { size: 10 } } },
-          y: { beginAtZero: true, suggestedMax: 3, ticks: { color: '#7a858b', font: { size: 10 }, stepSize: 0.5 } },
+          x: {
+            grid: { display: false },
+            ticks: { color: '#888', font: { size: 11 } },
+          },
+          y: {
+            beginAtZero: true,
+            suggestedMax: peak,
+            grid: { color: 'rgba(0,0,0,0.06)' },
+            ticks: {
+              color: '#888',
+              font: { size: 11 },
+              stepSize: peak <= 3 ? 0.5 : undefined,
+            },
+          },
         },
       }}
     />
@@ -636,7 +671,7 @@ const featuredCampaignsFromOffers = (campaigns: CampaignOffer[]): FeaturedCampai
     .map(toFeatured)
 }
 
-const chartClicks = Array.from({ length: 24 }, () => 0)
+const emptyHourly = Array.from({ length: 24 }, () => 0)
 
 const PENDING_OFFER_HINT = 'Awaiting manager approval'
 const pendingOfferNotice = (offerId: string) => (
@@ -649,7 +684,7 @@ const reportPages: Record<string, { title: string; columns: string[] }> = {
   '/reports/campaign': { title: 'Campaign Reports', columns: ['Campaign', 'Revenue', 'Clicks', 'Leads', 'EPC', 'CR'] },
   '/reports/geo': { title: 'Geo Reports', columns: ['Country', 'Revenue', 'Clicks', 'Leads', 'EPC', 'CR'] },
   '/reports/tool': { title: 'Tool Reports', columns: ['Tool ID', 'Name', 'Revenue', 'Clicks', 'Leads', 'EPC', 'CR'] },
-  '/reports/subid': { title: 'SubID Reports', columns: ['SubID', 'Revenue', 'Clicks', 'Leads', 'EPC', 'CR'] },
+  '/reports/subid': { title: 'SubID Reports', columns: ['subID', 'Revenue', 'Clicks', 'Leads', 'EPC', 'CR'] },
   '/reports/conversions': { title: 'Conversions', columns: ['Date & time', 'Campaign', 'Country', 'Device', 'SubID', 'Revenue', 'Status'] },
 }
 
@@ -744,13 +779,111 @@ const reportRangePresets = [
   { label: 'Last Month', days: 'last-month' as const },
 ] as const
 
-function formatReportDateLabel(date: string) {
+/** Affmine `#reportrange` label: "Nov 5, 2026" */
+function formatReportDateLabel(value: string) {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T12:00:00Z`)
+    : new Date(value)
+  if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     timeZone: 'UTC',
-  }).format(new Date(`${date}T00:00:00Z`))
+  }).format(date)
+}
+
+/** Affmine daily table / chart axis: "11/11/2026" */
+/** Affmine daily table date: `YYYY-MM-DD`. */
+function formatReportTableDate(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toISOString().slice(0, 10)
+}
+
+/** Affmine conversions DATE & TIME (EST): `09/11/2026 19:31:40` (DD/MM/YYYY). */
+function formatReportDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'America/New_York',
+  }).formatToParts(date)
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ''
+  return `${get('day')}/${get('month')}/${get('year')} ${get('hour')}:${get('minute')}:${get('second')}`
+}
+
+function formatConversionCampaignLabel(name: string, offerId: string) {
+  const cleaned = String(name || '').replace(/\s*\(#\d+\)\s*$/, '').trim()
+  if (offerId && /^\d+$/.test(offerId)) {
+    if (!cleaned || cleaned === `#${offerId}`) return `#${offerId}`
+    return `${cleaned} (#${offerId})`
+  }
+  return cleaned || name || '—'
+}
+
+function formatAffmineMoney(value: number) {
+  return `$${Number(value || 0).toFixed(2)}`
+}
+
+/** Affmine CR cells: `10%` / `5.56%` (no trailing .00). */
+function formatReportCr(value: number) {
+  const n = Math.round((Number(value) || 0) * 100) / 100
+  return Number.isInteger(n) ? `${n}%` : `${n.toFixed(2)}%`
+}
+
+function ReportCampaignFlag({ country, size = 25 }: { country: string; size?: number }) {
+  const code = country.toUpperCase()
+  if (!code || code === 'XX' || code === '—') return null
+  const Flag = CountryFlags[code as keyof typeof CountryFlags]
+  const label = campaignCountryLabels[code] ?? code
+  if (Flag) {
+    return (
+      <Flag
+        className={size <= 18 ? styles.feedFlag : styles.reportFlag}
+        title={label}
+        aria-label={label}
+        style={size <= 18 ? { width: size, height: size } : undefined}
+      />
+    )
+  }
+  return (
+    <img
+      className={size <= 18 ? styles.feedFlagImg : styles.reportFlagImg}
+      src={`/affmine/flags/${code.toLowerCase()}.png`}
+      alt={label}
+      title={label}
+      height={size}
+    />
+  )
+}
+
+/** Affmine dashboard feed device label: Android / iOS. */
+function formatConversionDevice(raw?: string) {
+  const value = String(raw || '').trim()
+  if (!value || value === '—') return '—'
+  const lower = value.toLowerCase()
+  if (lower.includes('android')) return 'Android'
+  if (lower.includes('iphone') || lower.includes('ipad') || lower.includes('ios')) return 'iOS'
+  if (lower.includes('mac')) return 'Mac'
+  if (lower.includes('windows')) return 'Windows'
+  return value
+}
+
+function formatConversionSubIdParts(raw: string): { prefix: string; value: string } | null {
+  const value = (raw || '').trim()
+  if (!value || value === '—') return null
+  const matched = value.match(/^(s\d+)\s*:\s*(.*)$/i)
+  if (matched) return { prefix: matched[1].toLowerCase(), value: matched[2].trim() || matched[1] }
+  const first = value.split('/')[0]?.trim() || value
+  return { prefix: 's1', value: first }
 }
 
 function toDateInputValue(date: Date) {
@@ -831,13 +964,63 @@ export default function DashboardOverview() {
   const [appliedCampaignFilters, setAppliedCampaignFilters] = useState({ country: 'All', device: 'All', category: 'All', type: 'All' })
   const [campaignSort, setCampaignSort] = useState<{ key: 'id' | 'name' | 'payout' | 'featured'; direction: 'asc' | 'desc' }>({ key: 'featured', direction: 'asc' })
   const [campaignPage, setCampaignPage] = useState(1)
-  const [reportRange, setReportRange] = useState('Nov 5, 2026 - Nov 11, 2026')
-  const [reportStartDate, setReportStartDate] = useState('2026-11-05')
-  const [reportEndDate, setReportEndDate] = useState('2026-11-11')
+  const [reportStartDate, setReportStartDate] = useState(() => {
+    const start = new Date()
+    start.setUTCHours(12, 0, 0, 0)
+    start.setUTCDate(start.getUTCDate() - 6)
+    return start.toISOString().slice(0, 10)
+  })
+  const [reportEndDate, setReportEndDate] = useState(() => {
+    const end = new Date()
+    end.setUTCHours(12, 0, 0, 0)
+    return end.toISOString().slice(0, 10)
+  })
+  const [reportRange, setReportRange] = useState(() => {
+    const end = new Date()
+    end.setUTCHours(12, 0, 0, 0)
+    const start = new Date(end)
+    start.setUTCDate(start.getUTCDate() - 6)
+    return `${formatReportDateLabel(start.toISOString().slice(0, 10))} - ${formatReportDateLabel(end.toISOString().slice(0, 10))}`
+  })
   const [showReportDates, setShowReportDates] = useState(false)
   const [pageSearch, setPageSearch] = useState('')
   const [postbackEnabled, setPostbackEnabled] = useState(true)
   const [postbackUrl, setPostbackUrl] = useState('')
+  const [marketplacePostbackUrl, setMarketplacePostbackUrl] = useState('')
+  const [marketplacePostbackLoading, setMarketplacePostbackLoading] = useState(false)
+  const [publisherEarnings, setPublisherEarnings] = useState(0)
+  const [dashboardStats, setDashboardStats] = useState({
+    revenue: 0,
+    conversions: 0,
+    clicks: 0,
+    avgEpc: 0,
+    convRate: 0,
+    monthRevenue: 0,
+  })
+  const [dashboardHourly, setDashboardHourly] = useState({
+    clicks: emptyHourly,
+    conversions: emptyHourly,
+    revenue: emptyHourly,
+  })
+  const [recentConversions, setRecentConversions] = useState<Array<{
+    id: string
+    offerId: string | null
+    campaign: string
+    payout: number
+    country: string
+    device?: string
+    subId: string
+    createdAt: string
+    status: string
+  }>>([])
+  const [reportData, setReportData] = useState<{
+    rows: Array<Record<string, string | number>>
+    totals: { revenue: number; clicks: number; leads: number; epc: number; cr: number } | null
+    chartLabels: string[]
+    chartClicks: number[]
+    chartConversions: number[]
+    chartRevenue: number[]
+  } | null>(null)
   const [pageNotice, setPageNotice] = useState('')
   const [accountDetails, setAccountDetails] = useState<AccountDetailsForm>(emptyAccountDetails)
   const [accountSaving, setAccountSaving] = useState(false)
@@ -1440,6 +1623,39 @@ export default function DashboardOverview() {
   }, [supportMessengerOpen])
 
   useEffect(() => {
+    if (pathname !== '/tools/postback' && pathname !== '/payments') return
+    let active = true
+    setMarketplacePostbackLoading(true)
+    void fetch('/api/postback/config', { credentials: 'include', cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) return null
+        return response.json() as Promise<{
+          role?: string
+          isActive?: boolean
+          inboundUrl?: string
+          earningsSinceLastInvoice?: number
+        }>
+      })
+      .then((data) => {
+        if (!active || !data) return
+        if (data.role === 'MANAGER' && data.inboundUrl) {
+          setMarketplacePostbackUrl(data.inboundUrl)
+          setPostbackEnabled(data.isActive !== false)
+        }
+        if (typeof data.earningsSinceLastInvoice === 'number') {
+          setPublisherEarnings(data.earningsSinceLastInvoice)
+        }
+      })
+      .catch((requestError: unknown) => {
+        console.error('Unable to load postback config:', requestError)
+      })
+      .finally(() => {
+        if (active) setMarketplacePostbackLoading(false)
+      })
+    return () => { active = false }
+  }, [pathname])
+
+  useEffect(() => {
     const offerMatch = pathname.match(/^\/campaigns\/(\d+)$/)
     const offerId = offerMatch?.[1]
     if (!offerId || accountProfile.publisherNumber == null) return
@@ -1450,6 +1666,99 @@ export default function DashboardOverview() {
       subId2: trackingSubIds[1],
     }))
   }, [pathname, accountProfile.publisherNumber, trackingSubIds])
+
+  useEffect(() => {
+    if (pathname !== '/dashboard') return
+    let active = true
+    void fetch('/api/analytics/overview', { credentials: 'include', cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) return null
+        return response.json() as Promise<{
+          today?: {
+            revenue: number
+            conversions: number
+            clicks: number
+            avgEpc: number
+            convRate: number
+            monthRevenue: number
+          }
+          hourly?: Array<{ hour: number; clicks: number; conversions: number; revenue: number }>
+          recentConversions?: Array<{
+            id: string
+            offerId: string | null
+            campaign: string
+            payout: number
+            country: string
+            device?: string
+            subId: string
+            createdAt: string
+            status: string
+          }>
+        }>
+      })
+      .then((data) => {
+        if (!active || !data) return
+        if (data.today) setDashboardStats(data.today)
+        if (Array.isArray(data.hourly) && data.hourly.length === 24) {
+          setDashboardHourly({
+            clicks: data.hourly.map((row) => row.clicks),
+            conversions: data.hourly.map((row) => row.conversions),
+            revenue: data.hourly.map((row) => row.revenue),
+          })
+        }
+        if (Array.isArray(data.recentConversions)) setRecentConversions(data.recentConversions)
+      })
+      .catch((requestError: unknown) => {
+        console.error('Unable to load dashboard analytics:', requestError)
+      })
+    return () => { active = false }
+  }, [pathname])
+
+  useEffect(() => {
+    const reportType = pathname.startsWith('/reports/')
+      ? pathname.replace('/reports/', '')
+      : ''
+    if (!reportType) {
+      setReportData(null)
+      return
+    }
+    let active = true
+    const params = new URLSearchParams({
+      type: reportType,
+      from: reportStartDate,
+      to: reportEndDate,
+    })
+    void fetch(`/api/analytics/reports?${params.toString()}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        if (!response.ok) return null
+        return response.json() as Promise<{
+          rows?: Array<Record<string, string | number>>
+          totals?: { revenue: number; clicks: number; leads: number; epc: number; cr: number } | null
+          chartLabels?: string[]
+          chartClicks?: number[]
+          chartConversions?: number[]
+          chartRevenue?: number[]
+        }>
+      })
+      .then((data) => {
+        if (!active || !data) return
+        setReportData({
+          rows: Array.isArray(data.rows) ? data.rows : [],
+          totals: data.totals ?? null,
+          chartLabels: Array.isArray(data.chartLabels) ? data.chartLabels : [],
+          chartClicks: Array.isArray(data.chartClicks) ? data.chartClicks : [],
+          chartConversions: Array.isArray(data.chartConversions) ? data.chartConversions : [],
+          chartRevenue: Array.isArray(data.chartRevenue) ? data.chartRevenue : [],
+        })
+      })
+      .catch((requestError: unknown) => {
+        console.error('Unable to load report analytics:', requestError)
+      })
+    return () => { active = false }
+  }, [pathname, reportStartDate, reportEndDate])
 
   useEffect(() => {
     if (pathname === '/incentive_offers') {
@@ -2399,9 +2708,23 @@ export default function DashboardOverview() {
       setPageNotice('Offer status could not be saved. Check your connection and try again.')
     }
   }
-  const chartPoints = chartClicks
-    .map((value, index) => `${36 + index * 19.2},${210 - value * 210}`)
+  const maxHourly = Math.max(
+    1,
+    ...dashboardHourly.clicks,
+    ...dashboardHourly.conversions,
+    ...dashboardHourly.revenue,
+  )
+  const scaleHourly = (value: number) => 210 - (value / maxHourly) * 200
+  const chartRevenuePoints = dashboardHourly.revenue
+    .map((value, index) => `${36 + index * 19.2},${scaleHourly(value)}`)
     .join(' ')
+  const chartClickPoints = dashboardHourly.clicks
+    .map((value, index) => `${36 + index * 19.2},${scaleHourly(value)}`)
+    .join(' ')
+  const chartConversionPoints = dashboardHourly.conversions
+    .map((value, index) => `${36 + index * 19.2},${scaleHourly(value)}`)
+    .join(' ')
+  const money = (value: number) => `$${value.toFixed(value >= 100 || Number.isInteger(value) ? 0 : 2)}`
 
   const renderFeaturedSlide = (
     campaign: FeaturedCampaign,
@@ -2522,7 +2845,25 @@ export default function DashboardOverview() {
               <button type="button" className={`${styles.navLink} ${items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly })) ? styles.navActive : ''}`} aria-expanded={openGroups.includes(label)} onClick={() => toggleGroup(label)}>
                 <i className={`${iconClass} ${styles.navIcon}`} aria-hidden="true" /><span>{label}</span><span className={`${styles.navCaret} ${items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly })) ? styles.navCaretActive : ''}`} aria-hidden="true" />
               </button>
-              {(openGroups.includes(label) || items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly }))) && <div className={styles.submenu}>{items.map((item) => <Link className={isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly }) ? styles.submenuActive : ''} href={item.href} key={item.href} aria-current={isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly }) ? 'page' : undefined} onClick={() => setMobileNavOpen(false)}>{item.label}</Link>)}</div>}
+              {(openGroups.includes(label) || items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly }))) && (
+                <div className={styles.submenu}>
+                  {items.map((item) => (
+                    <Link
+                      className={isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly }) ? styles.submenuActive : ''}
+                      href={item.href}
+                      key={item.href}
+                      aria-current={isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly }) ? 'page' : undefined}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        setMobileNavOpen(false)
+                        if (pathname !== item.href) router.push(item.href)
+                      }}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           <Link className={`${styles.navLink} ${pathname === '/payments' ? styles.navActive : ''}`} href="/payments" aria-current={pathname === '/payments' ? 'page' : undefined} onClick={() => setMobileNavOpen(false)}><i className={`fa fa-money ${styles.navIcon}`} aria-hidden="true" /><span>Payments</span></Link>
@@ -2530,7 +2871,25 @@ export default function DashboardOverview() {
             <button type="button" className={`${styles.navLink} ${(visibleMenuGroups.find((group) => group.label === 'Account')?.items ?? []).some((item) => isMenuItemActive(pathname, item.href)) ? styles.navActive : ''}`} aria-expanded={openGroups.includes('Account')} onClick={() => toggleGroup('Account')}>
               <i className={`fa fa-user ${styles.navIcon}`} aria-hidden="true" /><span>Account</span><span className={`${styles.navCaret} ${(visibleMenuGroups.find((group) => group.label === 'Account')?.items ?? []).some((item) => isMenuItemActive(pathname, item.href)) ? styles.navCaretActive : ''}`} aria-hidden="true" />
             </button>
-            {(openGroups.includes('Account') || (visibleMenuGroups.find((group) => group.label === 'Account')?.items ?? []).some((item) => isMenuItemActive(pathname, item.href))) && <div className={styles.submenu}>{(visibleMenuGroups.find((group) => group.label === 'Account')?.items ?? []).map((item) => <Link className={isMenuItemActive(pathname, item.href) ? styles.submenuActive : ''} href={item.href} key={item.href} aria-current={isMenuItemActive(pathname, item.href) ? 'page' : undefined} onClick={() => setMobileNavOpen(false)}>{item.label}</Link>)}</div>}
+            {(openGroups.includes('Account') || (visibleMenuGroups.find((group) => group.label === 'Account')?.items ?? []).some((item) => isMenuItemActive(pathname, item.href))) && (
+              <div className={styles.submenu}>
+                {(visibleMenuGroups.find((group) => group.label === 'Account')?.items ?? []).map((item) => (
+                  <Link
+                    className={isMenuItemActive(pathname, item.href) ? styles.submenuActive : ''}
+                    href={item.href}
+                    key={item.href}
+                    aria-current={isMenuItemActive(pathname, item.href) ? 'page' : undefined}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      setMobileNavOpen(false)
+                      if (pathname !== item.href) router.push(item.href)
+                    }}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
           <a
             href="#support"
@@ -2551,7 +2910,7 @@ export default function DashboardOverview() {
           <p>
             Your Affiliate Manager<br />
             <a href="https://teams.live.com/l/invite/FEApzEOIWDUIoFRhwI" target="_blank" rel="noreferrer">Chat on Teams</a><br />
-            <Mail size={13} /> <a href="mailto:john@affmine.com">john@affmine.com</a>
+            <i className="fa fa-envelope" aria-hidden="true" /> <a href="mailto:john@affmine.com">john@affmine.com</a>
           </p>
         </section>
         <div className={styles.sidebarFooter}>
@@ -2570,9 +2929,16 @@ export default function DashboardOverview() {
             <div className={styles.pageHeaderRight}>
               {reportPage && (
                 <div className={styles.reportDatePicker}>
-                  <button type="button" className={styles.reportRangeInput} aria-expanded={showReportDates} onClick={() => setShowReportDates((open) => !open)}>
-                    {reportRange}
-                  </button>
+                  <input
+                    type="text"
+                    readOnly
+                    id="reportrange"
+                    className={styles.reportRangeInput}
+                    value={reportRange}
+                    aria-expanded={showReportDates}
+                    aria-label="Report date range"
+                    onClick={() => setShowReportDates((open) => !open)}
+                  />
                   {showReportDates && (
                     <div className={styles.reportDatePopover}>
                       <ul className={styles.reportDatePresets}>
@@ -3090,37 +3456,193 @@ export default function DashboardOverview() {
             </form>
           </section>
         ) : reportPage ? (
-          <section className={`${styles.panel} ${styles.dataPage}`}>
+          <>
+          <section className={`${styles.panel} ${styles.dataPage} ${styles.reportPanel}`}>
             <div className={styles.reportHeading}>
               <h2><i className="fa fa-bar-chart" aria-hidden="true" /> {reportPage.title}</h2>
               <div className={styles.reportTools}>
-                <input type="search" aria-label="Search report" placeholder="Search" value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} />
+                <input
+                  id="table_search"
+                  type="text"
+                  className="table_search"
+                  aria-label="Search"
+                  placeholder="Search"
+                  value={pageSearch}
+                  onChange={(event) => setPageSearch(event.target.value)}
+                />
               </div>
             </div>
-            <div className={styles.reportChart} role="img" aria-label={`${reportPage.title.toLowerCase()} chart showing no account activity`}>
-              <ReportLineChart labels={['11/05/2026', '11/06/2026', '11/07/2026', '11/08/2026', '11/09/2026', '11/10/2026', '11/11/2026']} />
-            </div>
-            <div className={styles.reportLegend}><span><i className={styles.reportClicks} />Clicks</span><span><i className={styles.reportConversions} />Conversions</span><span><i className={styles.reportRevenue} />Revenue</span></div>
-            <div className={styles.dataTableWrap}>
-              <table className={styles.dataTable}>
-                <thead><tr>{reportPage.columns.map((column) => <th key={column} className={styles.sortableHeader}>{column}</th>)}</tr></thead>
-                <tbody>
-                  {pathname !== '/reports/conversions' && (
+            <div className={styles.reportBody}>
+            {pathname === '/reports/daily' ? (
+              <div id="container" className={`${styles.reportChart} ${styles.bigchart}`} aria-label="Daily Reports chart">
+                <ReportDailyBarChart
+                  labels={reportData?.chartLabels?.length ? reportData.chartLabels : ['—']}
+                  clicks={reportData?.chartClicks}
+                  conversions={reportData?.chartConversions}
+                  revenue={reportData?.chartRevenue}
+                />
+              </div>
+            ) : null}
+            <div className={styles.reportTableWrap}>
+              {(() => {
+                const query = pageSearch.trim().toLowerCase()
+                const rows = (reportData?.rows || []).filter((row) => {
+                  if (!query) return true
+                  return Object.values(row).some((value) => String(value).toLowerCase().includes(query))
+                })
+                const showTotals = pathname !== '/reports/conversions' && !!reportData?.totals
+                const entryCount = rows.length
+                return (
+              <>
+              <table
+                id={pathname === '/reports/daily' ? 'daily_reports' : 'table_report'}
+                className={`${styles.dataTable} ${styles.displayTable}`}
+              >
+                <thead>
+                  <tr>{reportPage.columns.map((column) => <th key={column} className={styles.sortableHeader}>{column}</th>)}</tr>
+                </thead>
+                {showTotals ? (
+                  <tfoot>
                     <tr className={styles.dataTotal}>
                       {reportPage.columns.map((column, index) => {
-                        if (index === 0) return <th scope="row" key={column}>TOTAL</th>
-                        const value = ['Revenue', 'EPC'].includes(column) ? '$0.00' : column === 'CR' ? '0%' : ['Tool ID', 'Name'].includes(column) ? '' : '0'
-                        return <td key={column}>{value}</td>
+                        if (index === 0) return <th key={column}>Total</th>
+                        if (column === 'Name' || column === 'Tool ID') return <th key={column}></th>
+                        if (column === 'Revenue' || column === 'EPC') {
+                          return <th key={column}>{formatAffmineMoney(column === 'Revenue' ? reportData!.totals!.revenue : reportData!.totals!.epc)}</th>
+                        }
+                        if (column === 'CR') return <th key={column}>{formatReportCr(reportData!.totals!.cr)}</th>
+                        if (column === 'Clicks') return <th key={column}>{reportData!.totals!.clicks}</th>
+                        if (column === 'Leads') return <th key={column}>{reportData!.totals!.leads}</th>
+                        return <th key={column}></th>
                       })}
                     </tr>
-                  )}
-                  <tr><td colSpan={reportPage.columns.length}>No data available</td></tr>
+                  </tfoot>
+                ) : null}
+                <tbody>
+                  {!rows.length ? (
+                    <tr className={styles.dataEmpty}>
+                      <td className={styles.dataTablesEmpty} colSpan={reportPage.columns.length} valign="top">No data available</td>
+                    </tr>
+                  ) : rows.map((row, rowIndex) => (
+                      <tr key={`${pathname}-${rowIndex}`} className={rowIndex % 2 === 0 ? styles.rowOdd : styles.rowEven}>
+                        {reportPage.columns.map((column) => {
+                          if (pathname === '/reports/conversions') {
+                            if (column === 'Date & time') return <td key={column}>{formatReportDateTime(String(row.date))}</td>
+                            if (column === 'Campaign') {
+                              const offerId = String(row.offerId || '')
+                              const label = formatConversionCampaignLabel(String(row.campaign || ''), offerId)
+                              return (
+                                <td key={column} className={styles.reportCampaignCell}>
+                                  {offerId && /^\d+$/.test(offerId) ? (
+                                    <Link
+                                      id={offerId}
+                                      href={`/campaigns/${offerId}`}
+                                      className={styles.reportCampaignLink}
+                                    >
+                                      <b>{label}</b>
+                                    </Link>
+                                  ) : <b>{label}</b>}
+                                </td>
+                              )
+                            }
+                            if (column === 'Country') {
+                              const code = String(row.country || '').toUpperCase()
+                              return (
+                                <td key={column} className={styles.reportCampaignCell}>
+                                  <ReportCampaignFlag country={code} />
+                                  {' '}
+                                  {code && code !== '—' ? code : '—'}
+                                </td>
+                              )
+                            }
+                            if (column === 'Device') return <td key={column}>{String(row.device || '—')}</td>
+                            if (column === 'SubID') {
+                              const parts = formatConversionSubIdParts(String(row.subId || ''))
+                              if (!parts) return <td key={column}>—</td>
+                              return (
+                                <td key={column}>
+                                  <strong>{parts.prefix}:</strong> {parts.value}
+                                </td>
+                              )
+                            }
+                            if (column === 'Revenue') return <td key={column}>{formatAffmineMoney(Number(row.revenue || 0))}</td>
+                            if (column === 'Status') {
+                              return (
+                                <td key={column}>
+                                  <span className={styles.reportStatusCredited}>{String(row.status || 'Credited')}</span>
+                                </td>
+                              )
+                            }
+                          }
+                          if (column === 'Tool ID') return <td key={column}>{String(row.toolId ?? row.label ?? '')}</td>
+                          if (column === 'Name') return <td key={column}>{String(row.name ?? '')}</td>
+                          if (column === 'Campaign' || (column === reportPage.columns[0] && pathname === '/reports/campaign')) {
+                            const offerId = String(row.offerId || row.key || '')
+                            const label = String(row.label ?? '')
+                            const country = String(row.country || '')
+                            return (
+                              <td key={column} className={styles.reportCampaignCell}>
+                                <ReportCampaignFlag country={country} />
+                                {' '}
+                                {offerId && /^\d+$/.test(offerId) ? (
+                                  <Link
+                                    id={offerId}
+                                    href={`/campaigns/${offerId}`}
+                                    target="_blank"
+                                    className={styles.reportCampaignLink}
+                                  >
+                                    <b>{label}</b>
+                                  </Link>
+                                ) : <b>{label}</b>}
+                              </td>
+                            )
+                          }
+                          if (column === 'Country' || (column === reportPage.columns[0] && pathname === '/reports/geo')) {
+                            const code = String(row.key || row.country || row.label || '').toUpperCase()
+                            const name = String(row.label || campaignCountryLabels[code] || code)
+                            return (
+                              <td key={column} className={styles.reportCampaignCell}>
+                                <ReportCampaignFlag country={code} />
+                                {' '}
+                                {name}
+                              </td>
+                            )
+                          }
+                          if (column === 'subID' || (column === reportPage.columns[0] && pathname === '/reports/subid')) {
+                            return <td key={column}>{String(row.label ?? '')}</td>
+                          }
+                          if (column === reportPage.columns[0]) {
+                            const label = String(row.label ?? '')
+                            return <td key={column}>{pathname === '/reports/daily' ? formatReportTableDate(label) : label}</td>
+                          }
+                          if (column === 'Revenue' || column === 'EPC') return <td key={column}>{formatAffmineMoney(Number(column === 'Revenue' ? row.revenue : row.epc) || 0)}</td>
+                          if (column === 'CR') return <td key={column}>{formatReportCr(Number(row.cr || 0))}</td>
+                          if (column === 'Clicks') return <td key={column}>{Number(row.clicks || 0)}</td>
+                          if (column === 'Leads') return <td key={column}>{Number(row.leads || 0)}</td>
+                          return <td key={column}></td>
+                        })}
+                      </tr>
+                    ))}
                 </tbody>
               </table>
+              <div className={styles.reportPagination}>
+                <div className={styles.reportPaginationInfo}>
+                  Showing {entryCount ? 1 : 0} to {entryCount} of {entryCount} entries
+                </div>
+                <div className={styles.reportPaginationControls}>
+                  <button type="button" disabled>Previous</button>
+                  <button type="button" className={styles.campaignPageActive}>1</button>
+                  <button type="button" disabled>Next</button>
+                </div>
+              </div>
+              </>
+                )
+              })()}
             </div>
-            <div className={styles.reportPagination}><span>Showing 0 to 0 of 0 entries</span><div><button type="button" disabled>Previous</button><button type="button" className={styles.campaignPageActive}>1</button><button type="button" disabled>Next</button></div></div>
-            <div className={styles.dataPageFooter}>* All reports are displayed in EST time (GMT -4:00).</div>
+            </div>
           </section>
+          <p className={styles.reportEstNote}><small>* All reports are displayed in EST time (GMT -4:00).</small></p>
+          </>
         ) : isPublisherAccounts ? (
           userRole === null ? (
             <section className={`${styles.panel} ${styles.dataPage}`}>
@@ -3841,7 +4363,7 @@ export default function DashboardOverview() {
               <div className={styles.paymentSummary}>
                 <div><strong className={styles.paymentUp}>$0.00</strong><span>Total Paid</span></div>
                 <div><strong>$0.00</strong><span>Pending</span></div>
-                <div><strong className={styles.paymentUp}>$0.00</strong><span>Earnings since last invoice</span></div>
+                <div><strong className={styles.paymentUp}>${publisherEarnings.toFixed(2)}</strong><span>Earnings since last invoice</span></div>
                 <div><strong>0</strong><span>Total payments</span></div>
               </div>
               <section className={styles.paymentInfoSection}>
@@ -4349,42 +4871,124 @@ export default function DashboardOverview() {
           </section>
         ) : pathname === '/tools/postback' ? (
           <>
-            <section className={`${styles.panel} ${styles.dataPage}`}>
-              <h2 className={styles.sectionTitle}>EDIT POSTBACK</h2>
-              <div className={styles.dataForm}>
-                <label className={styles.dataField}>Postback status
-                  <span className={styles.postbackToggle}>
-                    <input type="checkbox" checked={postbackEnabled} onChange={(event) => setPostbackEnabled(event.target.checked)} />
-                    <span>{postbackEnabled ? 'On' : 'Off'}</span>
-                  </span>
-                </label>
-                <label className={styles.dataField}>Global S2S Postback URL
-                  <input
-                    type="url"
-                    value={postbackUrl}
-                    onChange={(event) => setPostbackUrl(event.target.value)}
-                    placeholder="http://example.com/postback.php?offerID=#cmpid#&subID=#s1#&payout=#payout#"
-                  />
-                </label>
-                <button type="button" className={styles.pagePrimaryButton} onClick={() => setPageNotice('Postback settings cannot be saved until the account service is connected.')}>
-                  <i className="fa fa-save" aria-hidden="true" />Save
-                </button>
-                {pageNotice && <p className={styles.pageNotice} role="status">{pageNotice}</p>}
-              </div>
-            </section>
+            {userRole === 'MANAGER' ? (
+              <section className={`${styles.panel} ${styles.dataPage}`}>
+                <h2 className={styles.sectionTitle}>MARKETPLACE INBOUND POSTBACK</h2>
+                <div className={styles.dataForm}>
+                  <p className={styles.pageNotice} role="note">
+                    Paste this URL into your main marketplace postback settings. Uses only marketplace tokens
+                    (<code>#s1#</code>–<code>#s4#</code>, <code>#payout#</code>, <code>#amount#</code>, <code>#cmpid#</code>, <code>#cmpname#</code>, <code>#datetime#</code>, <code>#ip#</code>, <code>#country#</code>).
+                    Mapping: <code>s1=publisher_id</code>, <code>s2=offer_id</code>, <code>s3=sub1</code>, <code>s4=sub2</code>.
+                  </p>
+                  <label className={styles.dataField}>Postback status
+                    <span className={styles.postbackToggle}>
+                      <input
+                        type="checkbox"
+                        checked={postbackEnabled}
+                        onChange={(event) => {
+                          const next = event.target.checked
+                          setPostbackEnabled(next)
+                          void fetch('/api/postback/config', {
+                            method: 'PATCH',
+                            credentials: 'include',
+                            headers: { 'content-type': 'application/json' },
+                            body: JSON.stringify({ isActive: next }),
+                          }).then(async (response) => {
+                            if (!response.ok) {
+                              setPageNotice('Unable to update postback status.')
+                              setPostbackEnabled(!next)
+                              return
+                            }
+                            setPageNotice(next ? 'Marketplace postback enabled.' : 'Marketplace postback disabled.')
+                          }).catch(() => {
+                            setPostbackEnabled(!next)
+                            setPageNotice('Unable to update postback status.')
+                          })
+                        }}
+                      />
+                      <span>{postbackEnabled ? 'On' : 'Off'}</span>
+                    </span>
+                  </label>
+                  <label className={styles.dataField}>Manager postback URL (for marketplace)
+                    <input
+                      type="url"
+                      readOnly
+                      value={marketplacePostbackLoading ? 'Loading…' : marketplacePostbackUrl}
+                      onClick={(event) => {
+                        if (marketplacePostbackUrl) event.currentTarget.select()
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className={styles.pagePrimaryButton}
+                    disabled={!marketplacePostbackUrl}
+                    onClick={async () => {
+                      if (!marketplacePostbackUrl) return
+                      try {
+                        await navigator.clipboard.writeText(marketplacePostbackUrl)
+                        setPageNotice('Marketplace postback URL copied.')
+                      } catch {
+                        setPageNotice('Copy failed — select the URL and copy manually.')
+                      }
+                    }}
+                  >
+                    <i className="fa fa-copy" aria-hidden="true" />Copy URL
+                  </button>
+                  {pageNotice && <p className={styles.pageNotice} role="status">{pageNotice}</p>}
+                </div>
+              </section>
+            ) : (
+              <section className={`${styles.panel} ${styles.dataPage}`}>
+                <h2 className={styles.sectionTitle}>EDIT POSTBACK</h2>
+                <div className={styles.dataForm}>
+                  <label className={styles.dataField}>Postback status
+                    <span className={styles.postbackToggle}>
+                      <input type="checkbox" checked={postbackEnabled} onChange={(event) => setPostbackEnabled(event.target.checked)} />
+                      <span>{postbackEnabled ? 'On' : 'Off'}</span>
+                    </span>
+                  </label>
+                  <label className={styles.dataField}>Global S2S Postback URL
+                    <input
+                      type="url"
+                      value={postbackUrl}
+                      onChange={(event) => setPostbackUrl(event.target.value)}
+                      placeholder="http://example.com/postback.php?offerID=#cmpid#&subID=#s1#&payout=#payout#"
+                    />
+                  </label>
+                  <button type="button" className={styles.pagePrimaryButton} onClick={() => setPageNotice('Postback settings cannot be saved until the account service is connected.')}>
+                    <i className="fa fa-save" aria-hidden="true" />Save
+                  </button>
+                  {pageNotice && <p className={styles.pageNotice} role="status">{pageNotice}</p>}
+                </div>
+              </section>
+            )}
             <section className={`${styles.panel} ${styles.dataPage}`}>
               <h2 className={styles.sectionTitle}>POSTBACK TOKENS</h2>
               <div className={styles.postbackTokens}>
                 <div className={styles.dataTableWrap}>
                   <table className={styles.dataTable}>
                     <thead><tr><th>Token</th><th>Description</th></tr></thead>
-                    <tbody>{[['#cmpid#', 'Campaign ID'], ['#cmpname#', 'Campaign name'], ['#payout#', 'Payout (in USD)'], ['#datetime#', 'Conversion date & time (Unix timestamp format)'], ['#ip#', 'Conversion IP'], ['#country#', 'Conversion country']].map(([token, description]) => <tr key={token}><td>{token}</td><td>{description}</td></tr>)}</tbody>
+                    <tbody>{[
+                      ['#cmpid#', 'Campaign ID'],
+                      ['#cmpname#', 'Campaign name'],
+                      ['#payout#', 'Payout (in USD)'],
+                      ['#datetime#', 'Conversion date & time (Unix timestamp format)'],
+                      ['#ip#', 'Conversion IP'],
+                      ['#country#', 'Conversion country'],
+                    ].map(([token, description]) => <tr key={token}><td>{token}</td><td>{description}</td></tr>)}</tbody>
                   </table>
                 </div>
                 <div className={styles.dataTableWrap}>
                   <table className={styles.dataTable}>
                     <thead><tr><th>Token</th><th>Description</th></tr></thead>
-                    <tbody>{[['#s1#', 'SubID 1'], ['#s2#', 'SubID 2'], ['#s3#', 'SubID 3'], ['#s4#', 'SubID 4'], ['#amount#', 'Virtual currency amount Offerwall only']].map(([token, description]) => <tr key={token}><td>{token}</td><td>{description}</td></tr>)}</tbody>
+                    <tbody>{[
+                      ['#s1#', 'SubID 1 (our publisher ID)'],
+                      ['#s2#', 'SubID 2 (our offer ID)'],
+                      ['#s3#', 'SubID 3 (publisher sub 1)'],
+                      ['#s4#', 'SubID 4 (publisher sub 2)'],
+                      ['#amount#', 'Virtual currency amount Offerwall only'],
+                    ].map(([token, description]) => <tr key={token}><td>{token}</td><td>{description}</td></tr>)}</tbody>
                   </table>
                 </div>
               </div>
@@ -4728,11 +5332,12 @@ export default function DashboardOverview() {
               <div className={styles.chart}>
                 <div className={styles.chartGrid} />
                 <svg viewBox="0 0 480 224" preserveAspectRatio="none" role="img" aria-label="Today hourly clicks, conversions, and revenue chart">
-                  <polyline points={chartPoints} fill="none" stroke="#3d464d" strokeWidth="3" vectorEffect="non-scaling-stroke" />
-                  <polyline points={chartClicks.map((_, index) => `${36 + index * 19.2},${210}`).join(' ')} fill="none" stroke="#3498db" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                  <polyline points={chartClicks.map((_, index) => `${36 + index * 19.2},${210}`).join(' ')} fill="none" stroke="#60ed32" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                  {chartClicks.map((value, index) => <circle key={index} cx={36 + index * 19.2} cy={210 - value * 210} r="3" fill="#3d464d" />)}
-                  {chartClicks.map((_, index) => <circle key={`blue-${index}`} cx={36 + index * 19.2} cy="210" r="2.5" fill="#3498db" />)}
+                  <polyline points={chartRevenuePoints} fill="none" stroke="#3d464d" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+                  <polyline points={chartClickPoints} fill="none" stroke="#3498db" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                  <polyline points={chartConversionPoints} fill="none" stroke="#60ed32" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                  {dashboardHourly.revenue.map((value, index) => <circle key={`rev-${index}`} cx={36 + index * 19.2} cy={scaleHourly(value)} r="3" fill="#3d464d" />)}
+                  {dashboardHourly.clicks.map((value, index) => <circle key={`click-${index}`} cx={36 + index * 19.2} cy={scaleHourly(value)} r="2.5" fill="#3498db" />)}
+                  {dashboardHourly.conversions.map((value, index) => <circle key={`conv-${index}`} cx={36 + index * 19.2} cy={scaleHourly(value)} r="2.5" fill="#60ed32" />)}
                 </svg>
                 <div className={styles.xLabels}>{Array.from({ length: 24 }, (_, index) => <span key={index}>{index}</span>)}</div>
               </div>
@@ -4742,12 +5347,12 @@ export default function DashboardOverview() {
 
           <div className={styles.rightColumn}>
             <section className={`${styles.panel} ${styles.statsPanel}`} aria-label="Today's statistics">
-              <div><p><CircleDollarSign size={15} />Revenue</p><strong>$0</strong></div>
-              <div><p><ShoppingCart size={15} />Conversions</p><strong>0</strong></div>
-              <div><p><MousePointer2 size={15} />Clicks</p><strong>0</strong></div>
-              <div><p><BriefcaseBusiness size={15} />Avg. EPC</p><strong>$0</strong></div>
-              <div><p><BarChart3 size={15} />Conv. Rate</p><strong className={styles.successValue}>0<small>%</small></strong></div>
-              <div><p><CalendarDays size={15} />This Month</p><strong>$0.00</strong></div>
+              <div><p><CircleDollarSign size={15} />Revenue</p><strong>{money(dashboardStats.revenue)}</strong></div>
+              <div><p><ShoppingCart size={15} />Conversions</p><strong>{dashboardStats.conversions}</strong></div>
+              <div><p><MousePointer2 size={15} />Clicks</p><strong>{dashboardStats.clicks}</strong></div>
+              <div><p><BriefcaseBusiness size={15} />Avg. EPC</p><strong>{money(dashboardStats.avgEpc)}</strong></div>
+              <div><p><BarChart3 size={15} />Conv. Rate</p><strong className={styles.successValue}>{dashboardStats.convRate.toFixed(dashboardStats.convRate % 1 ? 2 : 0)}<small>%</small></strong></div>
+              <div><p><CalendarDays size={15} />This Month</p><strong>${dashboardStats.monthRevenue.toFixed(2)}</strong></div>
             </section>
 
             <section className={`${styles.panel} ${styles.featuredPanel}`}>
@@ -4793,11 +5398,42 @@ export default function DashboardOverview() {
             </div>
           </section>
 
-          <section className={`${styles.panel} ${styles.tablePanel}`}>
-            <h2><ShoppingCart size={15} /> CONVERSIONS</h2>
-            <div className={styles.emptyConversions}>No data to display</div>
-            <div className={styles.tableScroll}>
-              <table><tbody /></table>
+          <section className={`${styles.panel} ${styles.conversionsPanel}`}>
+            <h2><i className="fa fa-shopping-cart" aria-hidden="true" /> Conversions</h2>
+            <div className={styles.conversionsScroll}>
+              {!recentConversions.length ? (
+                <div className={styles.emptyConversions}>No data to display</div>
+              ) : (
+                <table className={styles.conversionsTable}>
+                  <tbody>
+                    {recentConversions.map((lead) => {
+                      const countryCode = String(lead.country || '').toUpperCase()
+                      const countryName = campaignCountryLabels[countryCode] || countryCode || '—'
+                      const deviceLabel = formatConversionDevice(lead.device)
+                      const offerId = lead.offerId && /^\d+$/.test(lead.offerId) ? lead.offerId : ''
+                      return (
+                        <tr key={lead.id}>
+                          <td>
+                            New <b className={styles.colorAdd}>{formatAffmineMoney(lead.payout)}</b>
+                            {' '}conversion on{' '}
+                            {offerId ? (
+                              <Link id={offerId} href={`/campaigns/${offerId}`} target="_blank" className={styles.conversionCampaignLink}>
+                                <b>{lead.campaign}</b>
+                              </Link>
+                            ) : <b>{lead.campaign}</b>}
+                            {' '}from{' '}
+                            <ReportCampaignFlag country={countryCode} size={18} />
+                            {' '}
+                            <b>{countryName}</b>
+                            {' '}using <b>{deviceLabel}</b>
+                            {' '}on {formatReportDateTime(lead.createdAt)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </section>
         </div>}

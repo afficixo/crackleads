@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getCookieValue } from '@/lib/utils/helpers'
-import { getTrackingDomainHost, isTrackingPath } from '@/lib/tracking'
+import { getTrackingDomainHost, isSharedTrackingAppHost, isTrackingPath } from '@/lib/tracking'
 
 /**
  * Auth gate + publisher tracking rewrites.
@@ -18,11 +18,15 @@ export async function proxy(request: NextRequest) {
     const onTrackingHost = Boolean(trackingHost) && (
       requestHost === trackingHost
       || requestHost.startsWith(`${trackingHost}:`)
+      || requestHost.split(':')[0] === trackingHost.split(':')[0]
     )
     const publisherLooksLikeId = /^[0-9]+$/.test(trackingParts.publisherId)
+    const sharedHost = isSharedTrackingAppHost(requestHost)
 
-    // Only rewrite on the configured tracking host, or numeric /{pub}/{offer}/ on app host.
-    if (onTrackingHost || publisherLooksLikeId) {
+    // Shared app+tracking host (local/dev): only numeric /{publisher}/{offer}/.
+    // Dedicated tracking host: any non-reserved /{publisher}/{offer}/.
+    const shouldRewrite = publisherLooksLikeId || (onTrackingHost && !sharedHost)
+    if (shouldRewrite) {
       const rewriteUrl = request.nextUrl.clone()
       rewriteUrl.pathname = `/api/track/${encodeURIComponent(trackingParts.publisherId)}/${encodeURIComponent(trackingParts.offerId)}`
       return NextResponse.rewrite(rewriteUrl)

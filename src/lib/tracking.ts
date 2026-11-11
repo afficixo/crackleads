@@ -32,6 +32,36 @@ export function getTrackingDomainHost(): string {
   }
 }
 
+/** App origin host (`APP_URL` / `NEXT_PUBLIC_APP_URL`), used when tracking shares the app domain. */
+export function getAppDomainHost(): string {
+  const origin = normalizeOrigin(
+    process.env.NEXT_PUBLIC_APP_URL
+    || process.env.APP_URL
+    || '',
+  )
+  if (!origin) return ''
+  try {
+    return new URL(origin).host.toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
+function hostKey(host: string): string {
+  return host.trim().toLowerCase().replace(/:\d+$/, '')
+}
+
+/** True when TRACKING_DOMAIN points at the same host as the main app (common in local/dev). */
+export function isSharedTrackingAppHost(requestHost?: string | null): boolean {
+  const tracking = hostKey(getTrackingDomainHost())
+  if (!tracking) return false
+  const app = hostKey(getAppDomainHost())
+  const request = hostKey(requestHost || '')
+  if (app && tracking === app) return true
+  if (request && tracking === request) return true
+  return false
+}
+
 export function sanitizeTrackingToken(value: string | number | null | undefined): string {
   return String(value ?? '')
     .trim()
@@ -101,8 +131,8 @@ export function isTrackingPath(pathname: string): { publisherId: string; offerId
   // Avoid colliding with known app roots when tracking domain == app domain.
   const reserved = new Set([
     'api', 'dashboard', 'campaigns', 'account', 'payments', 'support', 'login', 'signup',
-    'incentive_offers', 'contentlocker', 'offerwall', 'tools', 'locker', 'wall', 'affmine',
-    '_next', 'favicon.ico',
+    'reports', 'terms', 'privacy', 'incentive_offers', 'contentlocker', 'offerwall',
+    'tools', 'locker', 'wall', 'affmine', '_next', 'favicon.ico',
   ])
   if (reserved.has(publisherId.toLowerCase())) return null
   return { publisherId, offerId }
