@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { MANAGER_USERNAME } from '@/lib/constants'
 import { prisma } from '@/lib/db/prisma'
+import { getManagerEnvCredentials, isManagerEnvUsername } from '@/lib/manager-auth'
 import type { UserRole } from '@/types'
 
 const JWT_SECRET = process.env.JWT_SECRET || ''
@@ -26,8 +26,15 @@ export type AuthUser = {
   googleEmailVerifiedAt?: Date | null
 }
 
-export function normalizeEffectiveUserRole(user: { role?: UserRole } | null | undefined): UserRole | undefined {
-  return user?.role
+export function normalizeEffectiveUserRole(
+  user: { role?: UserRole; username?: string | null; email?: string | null } | null | undefined,
+): UserRole | undefined {
+  if (!user) return undefined
+  // Env manager account must never render as publisher in the UI.
+  if (isManagerEnvUsername(user.username) || isManagerEnvUsername(user.email)) {
+    return 'MANAGER'
+  }
+  return user.role
 }
 
 export async function verifyCredentials(username: string, password: string) {
@@ -88,11 +95,20 @@ export async function getUserFromToken(token: string): Promise<AuthUser | null> 
 
   if (decoded.userId.startsWith('local-')) {
     const username = decoded.userId.slice('local-'.length)
-    if (!username || username !== MANAGER_USERNAME) return null
+    const { username: managerUsername } = getManagerEnvCredentials()
+    if (!username || !managerUsername || username.toLowerCase() !== managerUsername.toLowerCase()) {
+      return null
+    }
 
     try {
-      const existing = await prisma.user.findUnique({
-        where: { username },
+      const existing = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { username: { equals: managerUsername, mode: 'insensitive' } },
+            { email: { equals: managerUsername, mode: 'insensitive' } },
+            { email: { equals: `${managerUsername}@example.com`, mode: 'insensitive' } },
+          ],
+        },
         select: {
           id: true,
           username: true,
@@ -108,15 +124,17 @@ export async function getUserFromToken(token: string): Promise<AuthUser | null> 
           googleEmailVerifiedAt: true,
         },
       })
-      if (existing) return existing as AuthUser
+      if (existing) {
+        return { ...existing, role: 'MANAGER' } as AuthUser
+      }
     } catch (error) {
       console.error('Unable to restore the local manager session:', error)
     }
 
     return {
       id: decoded.userId,
-      username,
-      role: username === MANAGER_USERNAME ? 'MANAGER' : 'PUBLISHER',
+      username: managerUsername,
+      role: 'MANAGER',
       status: 'ACTIVE',
       publisherNumber: null,
     }
@@ -140,5 +158,21 @@ export async function getUserFromToken(token: string): Promise<AuthUser | null> 
     },
   })
 
-  return user?.status === 'DISABLED' ? null : user as AuthUser | null
+  if (!user || user.status === 'DISABLED') return null
+
+  if (isManagerEnvUsername(user.username) || isManagerEnvUsername(user.email)) {
+    if (user.role !== 'MANAGER') {
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { role: 'MANAGER', status: 'ACTIVE' },
+        })
+      } catch (error) {
+        console.error('Unable to repair manager role for', user.username, error)
+      }
+    }
+    return { ...user, role: 'MANAGER' } as AuthUser
+  }
+
+  return user as AuthUser
 }

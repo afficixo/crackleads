@@ -97,8 +97,12 @@ export async function createUserSafe(initialData: Prisma.UserUncheckedCreateInpu
       }
 
       // Ensure we only include columns that actually exist in the DB to avoid P2022 errors.
+      // information_schema may return lowercased names depending on the provider.
+      const existingLower = new Set([...existing].map((column) => column.toLowerCase()))
       const filtered = Object.fromEntries(
-        Object.entries(data).filter(([k]) => existing.size === 0 ? true : existing.has(k))
+        Object.entries(data).filter(([k]) => (
+          existing.size === 0 ? true : existing.has(k) || existingLower.has(k.toLowerCase())
+        ))
       ) as Prisma.UserCreateInput
 
       return await prisma.user.create({ data: filtered })
