@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { getDashboardPath } from "@/lib/auth/dashboard-path";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { AlertCircle, CheckCircle2, Clock3 } from "lucide-react";
@@ -17,7 +16,6 @@ export default function LoginClient() {
   const [approvalPendingNotice, setApprovalPendingNotice] = useState(false);
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -105,139 +103,113 @@ export default function LoginClient() {
   };
 
   return (
-    <PublicLayout className="!bg-white">
-      <main className="min-h-[250px] flex-1 bg-[#f3f4f6] px-4 pb-7 pt-24 md:pt-28">
-        <div className="mx-auto w-full max-w-[610px] rounded-[18px] border border-[#dfe5ea] bg-white p-6 shadow-[0_12px_28px_rgba(22,32,40,0.08)] md:p-9">
-          <header className="mb-6 text-center">
-            <div className="mb-4 flex justify-center">
-              <Image src="/affmine/logo.png" alt="Affmine" width={180} height={44} className="h-auto w-[170px]" priority />
-            </div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#36a35e]">
-              Welcome back
-            </p>
-            <h1 className="font-[Montserrat] text-3xl font-bold leading-tight text-[#263238] sm:text-4xl">
-              Affiliate Login
-            </h1>
-            <p className="mx-auto mt-3 max-w-xl text-base leading-6 text-[#6b7c87]">
-              Sign in to continue to your Affmine account.
-            </p>
-          </header>
+    <PublicLayout className="public-site-light" footerVariant="auth">
+      <main className="flex flex-1 flex-col bg-white px-4 pb-16 pt-28 sm:px-6 md:pt-32">
+        <div className="mx-auto w-full max-w-[520px]">
+          <h1 className="mb-8 text-center font-[Montserrat] text-[28px] font-normal leading-tight text-[#58666e] sm:mb-10 sm:text-[32px]">
+            Publisher Login
+          </h1>
 
-            {error && (
-              <div
-                role="alert"
-                className={`mb-3 overflow-hidden rounded border ${
-                  approvalPendingNotice
-                    ? "border-[#7ec9b4]/40 bg-[#eef8f4] text-[#31584e]"
-                    : "border-red-200 bg-red-50 text-red-800"
-                }`}
-              >
-                <div className="flex items-start gap-3 p-3">
-                  <div className="mt-0.5">
-                    {approvalPendingNotice ? (
-                      <Clock3 className="h-4 w-4" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4" />
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    {approvalPendingNotice ? (
-                      <>
-                        <p className="text-sm font-semibold">Approval Pending</p>
-                        <p className="mt-1 text-sm leading-5">
-                          Your publisher account is awaiting approval from the manager.
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm leading-5">{error}</p>
-                    )}
-                  </div>
+          {error && (
+            <div
+              role="alert"
+              className={`mb-4 overflow-hidden rounded border ${
+                approvalPendingNotice
+                  ? "border-[#7ec9b4]/40 bg-[#eef8f4] text-[#31584e]"
+                  : "border-red-200 bg-red-50 text-red-800"
+              }`}
+            >
+              <div className="flex items-start gap-3 p-3">
+                <div className="mt-0.5">
+                  {approvalPendingNotice ? (
+                    <Clock3 className="h-4 w-4" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  {approvalPendingNotice ? (
+                    <>
+                      <p className="text-sm font-semibold">Approval Pending</p>
+                      <p className="mt-1 text-sm leading-5">
+                        Your publisher account is awaiting approval from the manager.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm leading-5">{error}</p>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {success && (
-              <div role="status" aria-live="polite" className="mb-3 flex items-start gap-2 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                <span className="leading-5">{success}</span>
-              </div>
-            )}
+          {success && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mb-4 flex items-start gap-2 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+            >
+              <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span className="leading-5">{success}</span>
+            </div>
+          )}
 
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <div>
-                <label htmlFor="login-username" className="sr-only">Email or username</label>
-                <input
-                  id="login-username"
-                  name="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full rounded-[3px] border border-[#c7cbcd] bg-[#f1f3f5] px-3 py-2.5 text-lg text-[#455964] placeholder-[#74818a] outline-none transition focus:border-[#1ba1b4] focus:ring-2 focus:ring-[#1ba1b4]/20"
-                  placeholder="E-mail or username"
-                  autoComplete="username"
-                  required
-                  disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="login-password" className="sr-only">Password</label>
-                <input
-                  id="login-password"
-                  name="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-[3px] border border-[#c7cbcd] bg-[#f1f3f5] px-3 py-2.5 text-lg text-[#455964] placeholder-[#74818a] outline-none transition focus:border-[#1ba1b4] focus:ring-2 focus:ring-[#1ba1b4]/20"
-                  placeholder="Password"
-                  autoComplete="current-password"
-                  required
-                  disabled={loading}
-                />
-              </div>
-
-              <button
-                type="submit"
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div>
+              <label htmlFor="login-username" className="sr-only">
+                E-mail
+              </label>
+              <input
+                id="login-username"
+                name="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full rounded-[3px] border border-[#c7cbcd] bg-[#f1f3f5] px-3 py-2.5 text-[17px] text-[#455964] placeholder-[#74818a] outline-none transition focus:border-[#17a2b8] focus:ring-2 focus:ring-[#17a2b8]/20"
+                placeholder="E-mail"
+                autoComplete="username"
+                required
                 disabled={loading}
-                className="flex min-h-12 w-full items-center justify-center rounded-lg bg-[#5ff442] px-5 py-3 text-base font-semibold text-[#263238] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#4dd935] hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#5ff442]/30 focus-visible:ring-offset-2 active:translate-y-0 active:shadow-sm disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
-              >
-                {loading ? "Signing in..." : "Login"}
-              </button>
+              />
+            </div>
 
-              <div className="flex items-center justify-between gap-3 text-[17px]">
-                <Link href="/signup" className="text-[#007bff] hover:underline">
-                  Don&apos;t have an account?
-                </Link>
-                <span aria-hidden="true" />
-              </div>
+            <div>
+              <label htmlFor="login-password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-[3px] border border-[#c7cbcd] bg-[#f1f3f5] px-3 py-2.5 text-[17px] text-[#455964] placeholder-[#74818a] outline-none transition focus:border-[#17a2b8] focus:ring-2 focus:ring-[#17a2b8]/20"
+                placeholder="Password"
+                autoComplete="current-password"
+                required
+                disabled={loading}
+              />
+            </div>
 
-              <button
-                type="button"
-                disabled={googleLoading || loading}
-                onClick={() => {
-                  setGoogleLoading(true);
-                  window.location.assign("/api/auth/google/start?redirect=/dashboard");
-                }}
-                className="flex w-full items-center justify-center gap-3 rounded-[3px] border border-[#d3d7d9] bg-white px-3 py-2.5 text-lg font-medium text-[#455964] transition-colors hover:bg-[#f5f7f8] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {googleLoading ? (
-                  <span className="h-4 w-4 rounded-full border-2 border-[#1ba1b4] border-t-transparent animate-spin" />
-                ) : (
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fill="#4285F4" d="M21.6 12.23c0-.78-.07-1.53-.2-2.25H12v4.26h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.98-4.33 2.98-7.53Z" />
-                    <path fill="#34A853" d="M12 22c2.7 0 4.96-.89 6.62-2.41l-3.24-2.5c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.75-5.59-4.11H2.9v2.58A10 10 0 0 0 12 22Z" />
-                    <path fill="#FBBC05" d="M6.41 13.94A6.02 6.02 0 0 1 6.41 10.06V7.48H2.9A10 10 0 0 0 2 12c0 1.62.39 3.15 1.09 4.52l3.32-2.58Z" />
-                    <path fill="#EA4335" d="M12 6.04c1.47 0 2.79.5 3.83 1.49l2.87-2.87A9.96 9.96 0 0 0 12 2A10 10 0 0 0 2.9 7.48l3.51 2.58c.79-2.36 2.99-4.11 5.59-4.11Z" />
-                  </svg>
-                )}
-                <span>{googleLoading ? "Redirecting to Google..." : "Continue with Google"}</span>
-              </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex min-h-[46px] w-full items-center justify-center rounded-[3px] bg-[#17a2b8] px-5 py-2.5 text-[17px] font-normal text-white transition-colors hover:bg-[#138496] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#17a2b8]/30 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? "Signing in..." : "Login"}
+            </button>
 
-            </form>
+            <div className="flex items-center justify-between gap-3 pt-1 text-[17px]">
+              <Link href="/signup" className="text-[#007bff] hover:underline">
+                Don&apos;t have an account?
+              </Link>
+              <a href="#forgot-password" className="text-[#007bff] hover:underline">
+                Forgot Password?
+              </a>
+            </div>
+          </form>
         </div>
       </main>
-
     </PublicLayout>
   );
 }

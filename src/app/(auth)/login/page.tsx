@@ -4,9 +4,9 @@ import LoginClient from "./LoginClient";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://network.affmine.com'),
-  title: 'Manager Login — Affmine',
+  title: 'Publisher Login — Affmine',
   description:
-    'Log in to your Affmine account to manage campaigns, performance, and payouts.',
+    'Log in to your Affmine publisher account to manage campaigns, performance, and payouts.',
   robots: {
     index: false,
     follow: true,
@@ -15,9 +15,9 @@ export const metadata: Metadata = {
     canonical: 'https://network.affmine.com/login',
   },
   openGraph: {
-    title: 'Manager Login — Affmine',
+    title: 'Publisher Login — Affmine',
     description:
-      'Log in to your Affmine account to manage campaigns, performance, and payouts.',
+      'Log in to your Affmine publisher account to manage campaigns, performance, and payouts.',
     type: 'website',
     url: 'https://network.affmine.com/login',
     siteName: 'Affmine',
@@ -34,9 +34,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Manager Login — Affmine',
+    title: 'Publisher Login — Affmine',
     description:
-      'Log in to your Affmine account to manage campaigns, performance, and payouts.',
+      'Log in to your Affmine publisher account to manage campaigns, performance, and payouts.',
     images: ['https://network.affmine.com/affmine-preview.png'],
     creator: 'Affmine',
   },
