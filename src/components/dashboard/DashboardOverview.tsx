@@ -418,66 +418,37 @@ const seedCampaignAddedAt: Record<string, string> = {
   '33616': '2026-07-11T00:00:00.000Z',
   '33615': '2026-07-11T00:00:00.000Z',
   '33614': '2026-07-11T00:00:00.000Z',
+  // Incentive catalog added dates (newest first in Campaign Updates)
+  '35822': '2026-11-08T00:00:00.000Z',
+  '36756': '2026-11-06T00:00:00.000Z',
+  '35594': '2026-11-04T00:00:00.000Z',
+  '34928': '2026-11-02T00:00:00.000Z',
+  '35241': '2026-10-28T00:00:00.000Z',
+  '35151': '2026-10-27T00:00:00.000Z',
+  '35150': '2026-10-26T00:00:00.000Z',
+  '35153': '2026-10-25T00:00:00.000Z',
+  '35152': '2026-10-24T00:00:00.000Z',
+  '34927': '2026-10-20T00:00:00.000Z',
+  '34929': '2026-10-18T00:00:00.000Z',
+  '34010': '2026-10-12T00:00:00.000Z',
+  '33804': '2026-10-10T00:00:00.000Z',
+  '33866': '2026-10-09T00:00:00.000Z',
+  '33745': '2026-10-08T00:00:00.000Z',
+  '32703': '2026-10-05T00:00:00.000Z',
+  '4424': '2026-09-20T00:00:00.000Z',
+  '4415': '2026-09-18T00:00:00.000Z',
+  '4394': '2026-09-15T00:00:00.000Z',
+  '4392': '2026-09-14T00:00:00.000Z',
 }
 
 function CampaignUpdateFlag({ geo, id }: { geo: string; id: string }) {
-  const clipId = `campaign-flag-${id}`
-  const countryNames: Record<string, string> = {
-    US: 'United States',
-    GB: 'United Kingdom',
-    AU: 'Australia',
-    CA: 'Canada',
+  const code = geo.toUpperCase()
+  const Flag = CountryFlags[code as keyof typeof CountryFlags]
+  const label = campaignCountryLabels[code] ?? code
+  if (Flag) {
+    return <Flag className={styles.flag} title={label} aria-label={`${label} flag`} />
   }
-
-  return (
-    <svg className={styles.flag} viewBox="0 0 32 32" role="img" aria-label={`${countryNames[geo] ?? 'Country'} flag`}>
-      {geo === 'US' ? (
-        <>
-          <rect width="32" height="32" fill="#fff" />
-          <path d="M0 0h32v2.46H0zm0 4.92h32v2.46H0zm0 4.92h32v2.46H0zm0 4.92h32v2.46H0zm0 4.92h32v2.46H0zm0 4.92h32v2.46H0zm0 4.92h32V32H0z" fill="#b22234" />
-          <rect width="15" height="17.23" fill="#3c3b6e" />
-          {Array.from({ length: 5 }, (_, row) => (
-            <g key={row}>
-              {Array.from({ length: 6 }, (_, column) => (
-                <circle key={column} cx={2 + column * 2.2 + (row % 2 ? 1 : 0)} cy={2 + row * 3.1} r="0.55" fill="#fff" />
-              ))}
-            </g>
-          ))}
-        </>
-      ) : geo === 'GB' ? (
-        <>
-          <rect width="32" height="32" fill="#012169" />
-          <path d="M0 0h5l27 25v7h-5L0 6zm32 0h-5L0 25v7h5L32 6z" fill="#fff" />
-          <path d="M0 0h2.5L32 28v4h-2.5L0 3.5zm32 0h-2.5L0 28v4H2.5L32 3.5z" fill="#c8102e" />
-          <path d="M13 0h6v32h-6zM0 13h32v6H0z" fill="#fff" />
-          <path d="M14.5 0h3v32h-3zM0 14.5h32v3H0z" fill="#c8102e" />
-        </>
-      ) : geo === 'AU' ? (
-        <>
-          <rect width="32" height="32" fill="#012169" />
-          <defs>
-            <clipPath id={clipId}>
-              <rect width="16" height="14" />
-            </clipPath>
-          </defs>
-          <g clipPath={`url(#${clipId})`}>
-            <rect width="16" height="14" fill="#012169" />
-            <path d="M0 0h3l13 10v4h-3L0 3zm16 0h-3L0 10v4h3L16 3z" fill="#fff" />
-            <path d="M0 0h1.5L16 11.5V14h-1.5L0 2.5zm16 0h-1.5L0 11.5V14h1.5L16 2.5z" fill="#c8102e" />
-            <path d="M6 0h4v14H6zM0 5h16v4H0z" fill="#fff" />
-            <path d="M7 0h2v14H7zM0 6h16v2H0z" fill="#c8102e" />
-          </g>
-          <path d="m24 5 1 2.2 2.4.3-1.8 1.6.5 2.4-2.1-1.2-2.1 1.2.5-2.4-1.8-1.6 2.4-.3zM25 17l.8 1.7 1.9.2-1.4 1.3.4 1.9-1.7-1-1.7 1 .4-1.9-1.4-1.3 1.9-.2zM18 22l.7 1.5 1.7.2-1.2 1.2.3 1.7-1.5-.8-1.5.8.3-1.7-1.2-1.2 1.7-.2zM27 25l.6 1.3 1.5.2-1.1 1 .3 1.5-1.3-.7-1.3.7.3-1.5-1.1-1 1.5-.2z" fill="#fff" />
-        </>
-      ) : (
-        <>
-          <rect width="32" height="32" fill="#fff" />
-          <path d="M0 0h8v32H0zm24 0h8v32h-8z" fill="#d80621" />
-          <path d="m16 7 2.2 4.1 3.1-1.4-.9 4.1 2.4 1.1-3.2 2.3 1.3 4.1-4.9-1.8-4.9 1.8 1.3-4.1-3.2-2.3 2.4-1.1-.9-4.1 3.1 1.4z" fill="#d80621" />
-        </>
-      )}
-    </svg>
-  )
+  return <span className={styles.flagFallback} aria-label={label}>{campaignFlagEmoji(code) || id}</span>
 }
 
 type CampaignOffer = {
@@ -507,9 +478,12 @@ type FeaturedCampaign = {
   name: string
   payout: string
   geo: string
-  flag: string
+  country: string
   category: string
   imageSource?: string
+  placement?: 'STANDARD' | 'INCENTIVE'
+  action?: 'Apply' | 'Pending' | 'View'
+  requiresApproval?: boolean
 }
 
 type OfferDraft = {
@@ -632,26 +606,26 @@ const campaignCountryLabels: Record<string, string> = {
 }
 
 const seedCampaignOffers: CampaignOffer[] = [
-  { id: '35682', name: 'Rewards US - iPhone 18 Pro', payout: 2, country: 'US', action: 'Pending', description: 'Get $1000 Towards iPhone 18 Pro!', isHot: true, status: 'ACTIVE', device: [...allOfferDevices], requiresApproval: true },
-  { id: '35333', name: 'DailyJobs - Kelly Services Jobs - (US)', payout: 1.3, country: 'US', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '35332', name: 'JobsListings - Dollar Tree Jobs - (US)', payout: 2, country: 'US', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34909', name: 'Rewards US - Grocery $750', payout: 2, country: 'US', action: 'Pending', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34009', name: 'Rewards UK - Revolut £500', payout: 2, country: 'GB', action: 'View', device: [...allOfferDevices], requiresApproval: false },
-  { id: '34008', name: 'Rewards UK - Shein £750', payout: 2, country: 'GB', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34007', name: 'Rewards UK - Tesco £750', payout: 2, country: 'GB', action: 'Pending', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34006', name: 'Rewards UK - Asda £750', payout: 2, country: 'GB', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34005', name: 'Rewards AU - Product Reviewer Shein $750', payout: 2, country: 'AU', action: 'Pending', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34004', name: 'Rewards AU - Kmart $500', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34003', name: 'Rewards AU - Paypal $1000', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34002', name: 'Rewards AU - Mecca $750', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34001', name: 'Rewards CA - Shein $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '34000', name: 'Rewards CA - No Frills $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '33999', name: 'Rewards CA - PayPal $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '33998', name: 'Rewards CA - Costco $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
-  { id: '33617', name: 'Rewards US - Costco $100', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false },
-  { id: '33616', name: 'Rewards US - PayPal $1000', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false },
-  { id: '33615', name: 'Rewards US - Amazon $1000', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false },
-  { id: '33614', name: 'Rewards US - Cash $750', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false },
+  { id: '35682', name: 'Rewards US - iPhone 18 Pro', payout: 2, country: 'US', action: 'Pending', description: 'Get $1000 Towards iPhone 18 Pro!', isHot: true, status: 'ACTIVE', device: [...allOfferDevices], requiresApproval: true, category: 'E-mail Submit', imageSource: '/affmine/campaigns/35682.png' },
+  { id: '35333', name: 'DailyJobs - Kelly Services Jobs - (US)', payout: 1.3, country: 'US', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/35333.png' },
+  { id: '35332', name: 'JobsListings - Dollar Tree Jobs - (US)', payout: 2, country: 'US', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/35332.png' },
+  { id: '34909', name: 'Rewards US - Grocery $750', payout: 2, country: 'US', action: 'Pending', device: [...allOfferDevices], requiresApproval: true, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34909.png' },
+  { id: '34009', name: 'Rewards UK - Revolut £500', payout: 2, country: 'GB', action: 'View', device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34009.png' },
+  { id: '34008', name: 'Rewards UK - Shein £750', payout: 2, country: 'GB', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34008.png' },
+  { id: '34007', name: 'Rewards UK - Tesco £750', payout: 2, country: 'GB', action: 'Pending', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34007.png' },
+  { id: '34006', name: 'Rewards UK - Asda £750', payout: 2, country: 'GB', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34006.png' },
+  { id: '34005', name: 'Rewards AU - Product Reviewer Shein $750', payout: 2, country: 'AU', action: 'Pending', device: [...allOfferDevices], requiresApproval: true, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34005.png' },
+  { id: '34004', name: 'Rewards AU - Kmart $500', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34004.png' },
+  { id: '34003', name: 'Rewards AU - Paypal $1000', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34003.png' },
+  { id: '34002', name: 'Rewards AU - Mecca $750', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34002.png' },
+  { id: '34001', name: 'Rewards CA - Shein $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34001.png' },
+  { id: '34000', name: 'Rewards CA - No Frills $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34000.png' },
+  { id: '33999', name: 'Rewards CA - PayPal $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33999.png' },
+  { id: '33998', name: 'Rewards CA - Costco $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33998.png' },
+  { id: '33617', name: 'Rewards US - Costco $100', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33617.png' },
+  { id: '33616', name: 'Rewards US - PayPal $1000', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33616.png' },
+  { id: '33615', name: 'Rewards US - Amazon $1000', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33615.png' },
+  { id: '33614', name: 'Rewards US - Cash $750', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33614.png' },
 ]
 
 /** Offers reserved for Content Locker / OfferWall (Affmine Incentive Offers catalog). */
@@ -705,45 +679,39 @@ const campaignFlagEmoji = (country: string) => country.toUpperCase()
   .map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0)))
   .join('')
 
-/** Affmine dashboard featured carousel order (network.affmine.com) */
-const featuredCampaignSeed: FeaturedCampaign[] = [
-  { id: '19949', name: 'JobsListings - Amazon From Home - (US)', payout: '$1.50', geo: 'United States', flag: '🇺🇸', category: 'E-mail Submit' },
-  { id: '19952', name: 'Find Resources USA - Unclaimed Money', payout: '$2.00', geo: 'United States', flag: '🇺🇸', category: 'E-mail Submit' },
-  { id: '19950', name: 'JobsListings - Work From Home - (US)', payout: '$2.00', geo: 'United States', flag: '🇺🇸', category: 'E-mail Submit' },
-  { id: '19999', name: 'JobsListings - FedEx Jobs - (US)', payout: '$1.50', geo: 'United States', flag: '🇺🇸', category: 'E-mail Submit' },
-  { id: '19951', name: 'HigherIncomeJobs - Cleaning Jobs - (US)', payout: '$2.40', geo: 'United States', flag: '🇺🇸', category: 'E-mail Submit' },
-  { id: '21920', name: 'JobsListings - Driver Jobs - (US)', payout: '$2.00', geo: 'United States', flag: '🇺🇸', category: 'E-mail Submit' },
-  { id: '8893', name: 'Rewards AU - Shein $750', payout: '$2.00', geo: 'Australia', flag: '🇦🇺', category: 'E-mail Submit' },
-  { id: '7479', name: 'StartACareerToday - Amazon From Home - (US)', payout: '$2.00', geo: 'United States', flag: '🇺🇸', category: 'E-mail Submit' },
-  { id: '35682', name: 'Rewards US - iPhone 18 Pro', payout: '$2.00', geo: 'United States', flag: '🇺🇸', category: 'E-mail Submit' },
-]
-
 const featuredCampaignsFromOffers = (campaigns: CampaignOffer[]): FeaturedCampaign[] => {
-  const byId = new Map(campaigns.map((campaign) => [campaign.id, campaign]))
-  const fromSeed = featuredCampaignSeed.map((featured) => {
-    const match = byId.get(featured.id)
-    return {
-      ...featured,
-      name: match?.name ?? featured.name,
-      payout: match ? `$${match.payout.toFixed(2)}` : featured.payout,
-      geo: match ? (campaignCountryLabels[match.country] ?? match.country) : featured.geo,
-      flag: match ? campaignFlagEmoji(match.country) : featured.flag,
-      category: match?.category ?? featured.category,
-      imageSource: match?.imageSource ?? `/affmine/campaigns/${featured.id}.png`,
-    }
+  const toFeatured = (campaign: CampaignOffer): FeaturedCampaign => ({
+    id: campaign.id,
+    name: campaign.name,
+    payout: `$${campaign.payout.toFixed(2)}`,
+    geo: campaignCountryLabels[campaign.country] ?? campaign.country,
+    country: campaign.country,
+    category: campaign.category ?? 'E-mail Submit',
+    imageSource: campaign.imageSource
+      || (campaign.placement === 'INCENTIVE'
+        ? `/affmine/preview_i/${campaign.id}.png`
+        : `/affmine/campaigns/${campaign.id}.png`),
+    placement: campaign.placement ?? 'STANDARD',
+    action: campaign.action,
+    requiresApproval: campaign.requiresApproval,
   })
-  if (fromSeed.length) return fromSeed
+
+  // Dashboard featured carousel = HOT non-incent browse offers with real creatives.
+  const hotStandard = campaigns.filter((campaign) => (
+    campaign.isHot
+    && campaign.status !== 'PAUSED'
+    && campaign.placement !== 'INCENTIVE'
+  ))
+  if (hotStandard.length) return hotStandard.map(toFeatured)
+
+  // Fallback: any HOT offer, then newest active standard offers.
+  const hotAny = campaigns.filter((campaign) => campaign.isHot && campaign.status !== 'PAUSED')
+  if (hotAny.length) return hotAny.map(toFeatured)
+
   return campaigns
-    .filter((campaign) => campaign.isHot && campaign.status !== 'PAUSED')
-    .map((campaign) => ({
-      id: campaign.id,
-      name: campaign.name,
-      payout: `$${campaign.payout.toFixed(2)}`,
-      geo: campaignCountryLabels[campaign.country] ?? campaign.country,
-      flag: campaignFlagEmoji(campaign.country),
-      category: campaign.category ?? 'E-mail Submit',
-      imageSource: campaign.imageSource,
-    }))
+    .filter((campaign) => campaign.status !== 'PAUSED' && campaign.placement !== 'INCENTIVE')
+    .slice(0, 8)
+    .map(toFeatured)
 }
 
 const chartClicks = Array.from({ length: 24 }, () => 0)
@@ -1290,7 +1258,7 @@ export default function DashboardOverview() {
 
   useEffect(() => {
     const activeFeaturedCampaigns = featuredCampaignsFromOffers(
-      [...seedCampaignOffers, ...customCampaignOffers]
+      [...seedCampaignOffers, ...seedIncentiveOffers, ...customCampaignOffers]
         .filter((campaign) => !deletedCampaignIds.includes(campaign.id))
         .map((campaign) => mergeCampaignOverride(campaign, managedCampaignOverrides.find((override) => override.id === campaign.id))),
     )
@@ -1885,7 +1853,12 @@ export default function DashboardOverview() {
       geo: campaign.country,
       createdAt: campaign.createdAt ?? seedCampaignAddedAt[campaign.id] ?? '1970-01-01T00:00:00.000Z',
     }))
-    .sort((first, second) => Date.parse(second.createdAt) - Date.parse(first.createdAt))
+    .filter((campaign) => campaign.status !== 'PAUSED')
+    .sort((first, second) => {
+      const byDate = Date.parse(second.createdAt) - Date.parse(first.createdAt)
+      if (byDate !== 0) return byDate
+      return Number(second.id) - Number(first.id)
+    })
     .slice(0, 25)
   const detailedCampaign = campaignDetail ? allCampaignOffers.find((campaign) => campaign.id === campaignDetail[1]) : undefined
   const updateCampaignTrackingLink = () => {
@@ -2380,7 +2353,10 @@ export default function DashboardOverview() {
             <strong className={styles.campaignNameLocked} title={PENDING_OFFER_HINT}>{campaign.name}</strong>
           )}
         </div>
-        <div className={styles.featuredMeta}><b>Geo:</b> {campaign.flag} <b>|</b> Non-Incent <b>|</b> {campaign.category}</div>
+        <div className={styles.featuredMeta}>
+          <b>Geo:</b> <CampaignUpdateFlag geo={campaign.country} id={campaign.id} /> <b>|</b>{' '}
+          {campaign.placement === 'INCENTIVE' ? 'Incent' : 'Non-Incent'} <b>|</b> {campaign.category}
+        </div>
         <div className={styles.featuredMeta}><b>Payout:</b> <strong className={styles.payout}>{campaign.payout}</strong></div>
       </div>
     </div>
@@ -4713,10 +4689,21 @@ export default function DashboardOverview() {
             <div className={styles.tableScroll}>
               <table>
                 <tbody>
-                  {campaignUpdates.map((campaign) => <tr key={campaign.id}>
-                    <td><span className={styles.added}>✚</span> Added: <strong>#{campaign.id} <Link href={`/campaigns/${campaign.id}`}>{campaign.name}</Link></strong> <CampaignUpdateFlag geo={campaign.geo} id={campaign.id} /></td>
-                    <td>{new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }).format(new Date(campaign.createdAt))}</td>
-                  </tr>)}
+                  {campaignUpdates.map((campaign) => (
+                    <tr key={campaign.id}>
+                      <td>
+                        <span className={styles.added}>✚</span> Added:{' '}
+                        <strong>
+                          #{campaign.id}{' '}
+                          <Link href={`/campaigns/${campaign.id}`}>{campaign.name}</Link>
+                        </strong>{' '}
+                        <CampaignUpdateFlag geo={campaign.geo} id={campaign.id} />
+                        {campaign.placement === 'INCENTIVE' ? <span className={styles.campaignUpdateTag}>Incent</span> : null}
+                        {campaign.isHot ? <span className={styles.campaignUpdateHot}>HOT</span> : null}
+                      </td>
+                      <td>{new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }).format(new Date(campaign.createdAt))}</td>
+                    </tr>
+                  ))}
                   {!campaignUpdates.length && <tr><td className={styles.campaignUpdateEmpty} colSpan={2}>No campaign updates yet.</td></tr>}
                 </tbody>
               </table>

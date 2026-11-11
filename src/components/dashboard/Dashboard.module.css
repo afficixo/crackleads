@@ -5695,6 +5695,44 @@ a.offerAction {
   height: 18px;
   margin-left: 3px;
   vertical-align: middle;
+  border-radius: 2px;
+}
+
+.flagFallback {
+  display: inline-block;
+  margin-left: 3px;
+  color: #737d82;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.campaignUpdateTag,
+.campaignUpdateHot {
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: 2px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+.campaignUpdateTag {
+  background: #e8f1f8;
+  color: #438fc3;
+}
+
+.campaignUpdateHot {
+  background: #fff1e6;
+  color: #d97706;
+}
+
+.campaignUpdateEmpty {
+  color: #737d82;
+  text-align: center;
 }
 
 .emptyConversions {
