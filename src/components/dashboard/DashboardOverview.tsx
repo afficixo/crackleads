@@ -7,8 +7,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import * as CountryFlags from 'country-flag-icons/react/1x1'
 import {
   BarChart3,
-  Apple,
-  Bot,
   BriefcaseBusiness,
   CalendarDays,
   Check,
@@ -26,7 +24,6 @@ import {
   Mail,
   MessageCircle,
   MoreHorizontal,
-  Monitor,
   MousePointer2,
   Pencil,
   Pause,
@@ -36,7 +33,6 @@ import {
   Search,
   SendHorizontal,
   Settings,
-  Smartphone,
   ShoppingCart,
   Tags,
   Trash2,
@@ -133,6 +129,10 @@ const campaignFilterOptions: Record<'country' | 'device' | 'category' | 'type', 
     { value: 'PH', label: 'Philippines', flag: 'PH' },
     { value: 'TH', label: 'Thailand', flag: 'TH' },
     { value: 'NL', label: 'Netherlands', flag: 'NL' },
+    { value: 'DK', label: 'Denmark', flag: 'DK' },
+    { value: 'NO', label: 'Norway', flag: 'NO' },
+    { value: 'SE', label: 'Sweden', flag: 'SE' },
+    { value: 'BE', label: 'Belgium', flag: 'BE' },
     { value: 'HK', label: 'Hong Kong', flag: 'HK' },
   ],
   device: [
@@ -469,7 +469,11 @@ type CampaignOffer = {
   name: string
   payout: number
   country: string
+  /** Extra geos shown as flags (Affmine multi-country rows). */
+  countries?: string[]
   action: 'Apply' | 'Pending' | 'View'
+  /** When true, publishers must apply and wait for manager approval before opening/using the offer. */
+  requiresApproval?: boolean
   imageSource?: string
   offerTypes?: string[]
   category?: string
@@ -498,8 +502,11 @@ type OfferDraft = {
   payout: string
   imageSource: string
   offerTypes: string[]
+  requiresApproval: boolean
   category?: string
   country?: string
+  /** Extra geos for Affmine-style multi-country incentive rows. */
+  countries?: string[]
   device: string[]
   description?: string
   offerLink?: string
@@ -508,21 +515,79 @@ type OfferDraft = {
 const customOffersStorageKey = 'affmine-custom-offers'
 const campaignOverridesStorageKey = 'affmine-campaign-overrides'
 const deletedCampaignsStorageKey = 'affmine-deleted-campaigns'
+const activeIncentiveOffersStorageKey = 'affmine-active-incentive-offers'
 const defaultCampaignTrackingUrl = 'https://www.af9m8trk.com/6HH112BV/UQ711VGP/'
+const allOfferDevices = ['Windows', 'Mac', 'Android', 'iPhone', 'iPad', 'Mobile (Other)'] as const
+
 const initialOfferDraft: OfferDraft = {
   id: '',
   name: '',
   payout: '',
   imageSource: '',
   offerTypes: ['CPL', 'SOI'],
+  requiresApproval: true,
   category: 'E-mail Submit',
   country: 'US',
-  device: ['Desktop'],
+  countries: ['US'],
+  device: [...allOfferDevices],
   description: '',
   offerLink: '',
 }
 
-const offerCategories = ['E-mail Submit', 'Sweepstakes', 'Jobs', 'Rewards', 'Survey', 'Shopping', 'Finance', 'Gaming']
+const initialIncentiveOfferDraft: OfferDraft = {
+  id: '',
+  name: '',
+  payout: '',
+  imageSource: '',
+  offerTypes: ['CPI'],
+  requiresApproval: false,
+  category: 'App Install',
+  country: '',
+  countries: [],
+  device: ['iPhone', 'iPad', 'Mobile (Other)'],
+  description: '',
+  offerLink: '',
+}
+
+const offerRequiresApproval = (offer: Pick<CampaignOffer, 'action' | 'requiresApproval'>) => (
+  offer.requiresApproval ?? offer.action !== 'View'
+)
+
+const getCampaignDevices = (campaign: Pick<CampaignOffer, 'device'>) => (
+  campaign.device?.length ? campaign.device : [...allOfferDevices]
+)
+
+const formatCampaignDevices = (devices: string[]) => (
+  devices.length >= allOfferDevices.length ? 'All devices' : devices.join(', ')
+)
+
+const CampaignDeviceIcons = ({ devices }: { devices: string[] }) => {
+  const selected = new Set(devices)
+  const showDesktop = selected.has('Windows') || selected.has('Mac')
+  const showAndroid = selected.has('Android')
+  const showApple = selected.has('iPhone') || selected.has('iPad')
+  const showMobile = selected.has('Mobile (Other)')
+  const label = [
+    showDesktop ? 'Desktop' : null,
+    showAndroid ? 'Android' : null,
+    showApple ? 'iOS' : null,
+    showMobile ? 'Other mobile' : null,
+  ].filter(Boolean).join(', ') || 'No devices'
+
+  // Affmine device strip: fa-lg fa-desktop, fa-robot, fa-apple, fa-mobile-alt
+  return (
+    <span className={styles.deviceIcons} aria-label={label} title={formatCampaignDevices(devices)}>
+      {showDesktop && <i className={`fas fa-lg fa-desktop ${styles.deviceIcon}`} title="Desktop" aria-hidden="true" />}
+      {showAndroid && <i className={`fas fa-lg fa-robot ${styles.deviceIcon}`} title="Android" aria-hidden="true" />}
+      {showApple && <i className={`fab fa-lg fa-apple ${styles.deviceIcon}`} title="iOS" aria-hidden="true" />}
+      {showMobile && <i className={`fas fa-lg fa-mobile-alt ${styles.deviceIcon} ${styles.deviceIconMobile}`} title="Other mobile" aria-hidden="true" />}
+    </span>
+  )
+}
+
+const offerCategories = ['App Install', 'E-mail Submit', 'CC Submit', 'PIN Submit', 'Survey', 'Sweepstakes', 'Jobs', 'Rewards', 'Shopping', 'Finance', 'Gaming']
+const incentiveOfferTypeOptions = ['CPI', 'CPE', 'SOI', 'CPL']
+const standardOfferTypeOptions = ['CPL', 'CPE', 'CPI', 'SOI']
 
 const campaignCountryLabels: Record<string, string> = {
   US: 'United States',
@@ -544,39 +609,80 @@ const campaignCountryLabels: Record<string, string> = {
   TH: 'Thailand',
   NL: 'Netherlands',
   HK: 'Hong Kong',
+  DK: 'Denmark',
+  NO: 'Norway',
+  SE: 'Sweden',
+  BE: 'Belgium',
 }
 
 const seedCampaignOffers: CampaignOffer[] = [
-  { id: '35682', name: 'Rewards US - iPhone 18 Pro', payout: 2, country: 'US', action: 'Pending', description: 'Get $1000 Towards iPhone 18 Pro!', isHot: true, status: 'ACTIVE' },
-  { id: '35333', name: 'DailyJobs - Kelly Services Jobs - (US)', payout: 1.3, country: 'US', action: 'Apply' },
-  { id: '35332', name: 'JobsListings - Dollar Tree Jobs - (US)', payout: 2, country: 'US', action: 'Apply' },
-  { id: '34909', name: 'Rewards US - Grocery $750', payout: 2, country: 'US', action: 'Pending' },
-  { id: '34009', name: 'Rewards UK - Revolut £500', payout: 2, country: 'GB', action: 'View' },
-  { id: '34008', name: 'Rewards UK - Shein £750', payout: 2, country: 'GB', action: 'Apply' },
-  { id: '34007', name: 'Rewards UK - Tesco £750', payout: 2, country: 'GB', action: 'Pending' },
-  { id: '34006', name: 'Rewards UK - Asda £750', payout: 2, country: 'GB', action: 'Apply' },
-  { id: '34005', name: 'Rewards AU - Product Reviewer Shein $750', payout: 2, country: 'AU', action: 'Pending' },
-  { id: '34004', name: 'Rewards AU - Kmart $500', payout: 2, country: 'AU', action: 'Apply' },
-  { id: '34003', name: 'Rewards AU - Paypal $1000', payout: 2, country: 'AU', action: 'Apply' },
-  { id: '34002', name: 'Rewards AU - Mecca $750', payout: 2, country: 'AU', action: 'Apply' },
-  { id: '34001', name: 'Rewards CA - Shein $750', payout: 2, country: 'CA', action: 'Apply' },
-  { id: '34000', name: 'Rewards CA - No Frills $750', payout: 2, country: 'CA', action: 'Apply' },
-  { id: '33999', name: 'Rewards CA - PayPal $750', payout: 2, country: 'CA', action: 'Apply' },
-  { id: '33998', name: 'Rewards CA - Costco $750', payout: 2, country: 'CA', action: 'Apply' },
-  { id: '33617', name: 'Rewards US - Costco $100', payout: 3, country: 'US', action: 'View' },
-  { id: '33616', name: 'Rewards US - PayPal $1000', payout: 3, country: 'US', action: 'View' },
-  { id: '33615', name: 'Rewards US - Amazon $1000', payout: 3, country: 'US', action: 'View' },
-  { id: '33614', name: 'Rewards US - Cash $750', payout: 3, country: 'US', action: 'View' },
+  { id: '35682', name: 'Rewards US - iPhone 18 Pro', payout: 2, country: 'US', action: 'Pending', description: 'Get $1000 Towards iPhone 18 Pro!', isHot: true, status: 'ACTIVE', device: [...allOfferDevices], requiresApproval: true },
+  { id: '35333', name: 'DailyJobs - Kelly Services Jobs - (US)', payout: 1.3, country: 'US', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '35332', name: 'JobsListings - Dollar Tree Jobs - (US)', payout: 2, country: 'US', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34909', name: 'Rewards US - Grocery $750', payout: 2, country: 'US', action: 'Pending', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34009', name: 'Rewards UK - Revolut £500', payout: 2, country: 'GB', action: 'View', device: [...allOfferDevices], requiresApproval: false },
+  { id: '34008', name: 'Rewards UK - Shein £750', payout: 2, country: 'GB', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34007', name: 'Rewards UK - Tesco £750', payout: 2, country: 'GB', action: 'Pending', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34006', name: 'Rewards UK - Asda £750', payout: 2, country: 'GB', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34005', name: 'Rewards AU - Product Reviewer Shein $750', payout: 2, country: 'AU', action: 'Pending', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34004', name: 'Rewards AU - Kmart $500', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34003', name: 'Rewards AU - Paypal $1000', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34002', name: 'Rewards AU - Mecca $750', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34001', name: 'Rewards CA - Shein $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '34000', name: 'Rewards CA - No Frills $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '33999', name: 'Rewards CA - PayPal $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '33998', name: 'Rewards CA - Costco $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true },
+  { id: '33617', name: 'Rewards US - Costco $100', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false },
+  { id: '33616', name: 'Rewards US - PayPal $1000', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false },
+  { id: '33615', name: 'Rewards US - Amazon $1000', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false },
+  { id: '33614', name: 'Rewards US - Cash $750', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false },
 ]
 
-const mergeCampaignOverride = (source: CampaignOffer, override?: CampaignOffer): CampaignOffer => override
-  ? {
-      ...source,
-      ...override,
-      isHot: override.isHot ?? source.isHot,
-      status: override.status ?? source.status,
-    }
-  : source
+/** Offers reserved for Content Locker / OfferWall (Affmine Incentive Offers catalog). */
+const seedIncentiveOffers: CampaignOffer[] = [
+  { id: '35241', name: 'Ipsos iSay - SOI - DK', payout: 1.42, country: 'DK', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, isHot: true, status: 'ACTIVE', description: 'Complete profile registration and mobile verification.', imageSource: '/affmine/preview_i/35241.png' },
+  { id: '35151', name: 'Ipsos iSay - SOI - NO', payout: 1.19, country: 'NO', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', description: 'Complete profile registration and mobile verification.', imageSource: '/affmine/preview_i/35151.png' },
+  { id: '35150', name: 'Ipsos iSay - SOI - NL', payout: 1.09, country: 'NL', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', description: 'Complete profile registration and mobile verification.', imageSource: '/affmine/preview_i/35150.png' },
+  { id: '33804', name: 'Photobucket - iPhone/iPad - CPE - US,CA', payout: 1.13, country: 'US', countries: ['US', 'CA'], action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/33804.png' },
+  { id: '33866', name: 'Photobucket - iPhone/iPad - CPE - CA', payout: 1.13, country: 'CA', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/33866.png' },
+  { id: '33745', name: 'Photobucket - iPhone/iPad - CPE - US', payout: 1.13, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/33745.png' },
+  { id: '34010', name: 'Photobucket - iPhone/iPad - CPE - CA,AU,GB', payout: 1.13, country: 'CA', countries: ['CA', 'AU', 'GB'], action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/34010.png' },
+  { id: '34928', name: 'Mistplay - iPhone/iPad - CPE - US', payout: 3.65, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, isHot: true, status: 'ACTIVE', imageSource: '/affmine/preview_i/34928.png' },
+  { id: '32703', name: 'Playtest Pro - iPhone - CPE - US', payout: 7.84, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/32703.png' },
+  { id: '35594', name: 'Groupsy - iPhone/iPad - CPE - US', payout: 1.13, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/35594.png' },
+  { id: '4424', name: 'Rewards US - Cash $750 - (US)', payout: 2, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['CPL', 'SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/4424.png' },
+  { id: '35153', name: 'Ipsos iSay - SOI - SE', payout: 0.95, country: 'SE', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/35153.png' },
+  { id: '34927', name: 'Reco Social - iPhone/iPad - CPE - US', payout: 1.73, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/34927.png' },
+  { id: '35822', name: 'Copper - iPhone/iPad - CPE - US', payout: 15.6, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, isHot: true, status: 'ACTIVE', imageSource: '/affmine/preview_i/35822.png' },
+  { id: '34929', name: 'Midnite - iPhone/iPad - CPI - GB', payout: 0.39, country: 'GB', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPI'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/34929.png' },
+  { id: '35152', name: 'Ipsos iSay - SOI - BE', payout: 0.84, country: 'BE', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/35152.png' },
+  { id: '36756', name: 'SpinQuest Casino - iPhone/iPad - CPI - US', payout: 1.03, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPI'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/36756.png' },
+  { id: '4392', name: 'NCC - Dyson Supersonic - Incent (UK)', payout: 2, country: 'GB', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['CPL', 'SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/4392.png' },
+  { id: '4394', name: 'NCC - Primark £250 - Incent (UK)', payout: 2, country: 'GB', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['CPL', 'SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/4394.png' },
+  { id: '4415', name: 'RZUSA - KFC $500 - Incent (US)', payout: 2, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['CPL', 'SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/4415.png' },
+]
+
+const allSeedCampaignOffers = [...seedCampaignOffers, ...seedIncentiveOffers]
+
+const mergeCampaignOverride = (source: CampaignOffer, override?: CampaignOffer): CampaignOffer => {
+  if (!override) return source
+  const merged = {
+    ...source,
+    ...override,
+    isHot: override.isHot ?? source.isHot,
+    status: override.status ?? source.status,
+    countries: override.countries ?? source.countries,
+  }
+  // Prefer Affmine preview_i thumbs for incentive seeds when an old campaigns/ override is stuck in localStorage.
+  if (
+    source.placement === 'INCENTIVE'
+    && source.imageSource?.includes('/affmine/preview_i/')
+    && override.imageSource?.includes('/affmine/campaigns/')
+  ) {
+    merged.imageSource = source.imageSource
+  }
+  return merged
+}
 
 const campaignFlagEmoji = (country: string) => country.toUpperCase()
   .split('')
@@ -745,10 +851,18 @@ function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10)
 }
 
-const isMenuItemActive = (pathname: string, href: string) => pathname === href
-  || (href === '/campaigns/browse' && /^\/campaigns\/\d+$/.test(pathname))
-  || (href === '/contentlocker' && pathname.startsWith('/contentlocker/'))
-  || (href === '/offerwall' && pathname.startsWith('/offerwall/'))
+const seedIncentiveOfferIdSet = new Set(seedIncentiveOffers.map((offer) => offer.id))
+const isMenuItemActive = (pathname: string, href: string, options?: { incentiveDetail?: boolean }) => {
+  if (pathname === href) return true
+  if (href === '/contentlocker' && pathname.startsWith('/contentlocker/')) return true
+  if (href === '/offerwall' && pathname.startsWith('/offerwall/')) return true
+  const campaignMatch = pathname.match(/^\/campaigns\/(\d+)$/)
+  if (!campaignMatch) return false
+  const isIncentiveDetail = options?.incentiveDetail ?? seedIncentiveOfferIdSet.has(campaignMatch[1])
+  if (href === '/incentive_offers') return isIncentiveDetail
+  if (href === '/campaigns/browse') return !isIncentiveDetail
+  return false
+}
 
 export default function DashboardOverview() {
   const router = useRouter()
@@ -768,16 +882,19 @@ export default function DashboardOverview() {
   const [customCampaignOffers, setCustomCampaignOffers] = useState<CampaignOffer[]>([])
   const [managedCampaignOverrides, setManagedCampaignOverrides] = useState<CampaignOffer[]>([])
   const [deletedCampaignIds, setDeletedCampaignIds] = useState<string[]>([])
+  const [activeIncentiveOfferIds, setActiveIncentiveOfferIds] = useState<string[]>([])
   const [openOfferActionsId, setOpenOfferActionsId] = useState<string | null>(null)
   const [offerActionMenuPosition, setOfferActionMenuPosition] = useState<{ top: number; left: number } | null>(null)
   const [offerDraft, setOfferDraft] = useState<OfferDraft>(initialOfferDraft)
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null)
   const [offerPlacement, setOfferPlacement] = useState<'STANDARD' | 'INCENTIVE'>('STANDARD')
   const [offerFormError, setOfferFormError] = useState('')
+  const [geoSearch, setGeoSearch] = useState('')
+  const [imagePreviewState, setImagePreviewState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [showCampaignFilters, setShowCampaignFilters] = useState(false)
   const [campaignFilters, setCampaignFilters] = useState({ country: 'All', device: 'All', category: 'All', type: 'All' })
   const [appliedCampaignFilters, setAppliedCampaignFilters] = useState({ country: 'All', device: 'All', category: 'All', type: 'All' })
-  const [campaignSort, setCampaignSort] = useState<{ key: 'id' | 'name' | 'payout'; direction: 'asc' | 'desc' }>({ key: 'id', direction: 'desc' })
+  const [campaignSort, setCampaignSort] = useState<{ key: 'id' | 'name' | 'payout' | 'featured'; direction: 'asc' | 'desc' }>({ key: 'featured', direction: 'asc' })
   const [campaignPage, setCampaignPage] = useState(1)
   const [reportRange, setReportRange] = useState('Nov 5, 2026 - Nov 11, 2026')
   const [reportStartDate, setReportStartDate] = useState('2026-11-05')
@@ -872,20 +989,51 @@ export default function DashboardOverview() {
       const savedOverrides = window.localStorage.getItem(campaignOverridesStorageKey)
       const parsedOverrides = savedOverrides ? JSON.parse(savedOverrides) as unknown : []
       if (Array.isArray(parsedOverrides)) {
-        setManagedCampaignOverrides(parsedOverrides.filter((offer): offer is CampaignOffer => (
-          typeof offer?.id === 'string'
-          && typeof offer?.name === 'string'
-          && typeof offer?.payout === 'number'
-          && typeof offer?.country === 'string'
-        )))
+        const cleanedOverrides = parsedOverrides
+          .filter((offer): offer is CampaignOffer => (
+            typeof offer?.id === 'string'
+            && typeof offer?.name === 'string'
+            && typeof offer?.payout === 'number'
+            && typeof offer?.country === 'string'
+          ))
+          .map((offer) => {
+            const seed = allSeedCampaignOffers.find((candidate) => candidate.id === offer.id)
+            if (
+              seed?.placement === 'INCENTIVE'
+              && seed.imageSource?.includes('/affmine/preview_i/')
+              && offer.imageSource?.includes('/affmine/campaigns/')
+            ) {
+              return { ...offer, imageSource: seed.imageSource, countries: offer.countries ?? seed.countries }
+            }
+            return offer
+          })
+        setManagedCampaignOverrides(cleanedOverrides)
+        window.localStorage.setItem(campaignOverridesStorageKey, JSON.stringify(cleanedOverrides))
       }
       const savedDeletions = window.localStorage.getItem(deletedCampaignsStorageKey)
       const parsedDeletions = savedDeletions ? JSON.parse(savedDeletions) as unknown : []
       if (Array.isArray(parsedDeletions)) setDeletedCampaignIds(parsedDeletions.filter((id): id is string => typeof id === 'string'))
+      const savedActiveIncentive = window.localStorage.getItem(activeIncentiveOffersStorageKey)
+      const parsedActiveIncentive = savedActiveIncentive ? JSON.parse(savedActiveIncentive) as unknown : null
+      const defaultActiveIncentiveIds = seedIncentiveOffers.map((offer) => offer.id)
+      const seedIncentiveIdSet = new Set(defaultActiveIncentiveIds)
+      if (Array.isArray(parsedActiveIncentive)) {
+        const kept = parsedActiveIncentive.filter((id): id is string => typeof id === 'string' && seedIncentiveIdSet.has(id))
+        // Stale or empty saved lists fall back to Affmine-style all-active defaults.
+        const nextActive = kept.length > 0 ? kept : defaultActiveIncentiveIds
+        setActiveIncentiveOfferIds(nextActive)
+        if (kept.length === 0) {
+          window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(nextActive))
+        }
+      } else {
+        setActiveIncentiveOfferIds(defaultActiveIncentiveIds)
+        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(defaultActiveIncentiveIds))
+      }
     } catch {
       setCustomCampaignOffers([])
       setManagedCampaignOverrides([])
       setDeletedCampaignIds([])
+      setActiveIncentiveOfferIds(seedIncentiveOffers.map((offer) => offer.id))
     }
   }, [])
 
@@ -1137,7 +1285,7 @@ export default function DashboardOverview() {
   }, [campaignIndex, previousCampaignIndex])
 
   useEffect(() => {
-    const activeGroup = menuGroups.find(({ items }) => items.some((item) => isMenuItemActive(pathname, item.href)))?.label
+    const activeGroup = menuGroups.find(({ items }) => items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail: seedIncentiveOfferIdSet.has(pathname.split('/').pop() || '') })))?.label
     if (activeGroup) {
       setOpenGroups((groups) => groups.includes(activeGroup) ? groups : [...groups, activeGroup])
     }
@@ -1242,6 +1390,16 @@ export default function DashboardOverview() {
   }, [supportConversation?.messages.length, supportMessengerOpen])
 
   useEffect(() => {
+    if (pathname === '/incentive_offers') {
+      setCampaignSort({ key: 'featured', direction: 'asc' })
+      setCampaignPage(1)
+    } else if (pathname === '/campaigns/browse' || pathname === '/campaigns/new') {
+      setCampaignSort({ key: 'id', direction: 'desc' })
+      setCampaignPage(1)
+    }
+  }, [pathname])
+
+  useEffect(() => {
     if (pathname !== '/campaigns/add') {
       setEditingOfferId(null)
       setOfferPlacement('STANDARD')
@@ -1250,10 +1408,15 @@ export default function DashboardOverview() {
 
     const searchParams = new URLSearchParams(window.location.search)
     const offerId = searchParams.get('edit')
-    setOfferPlacement(searchParams.get('placement') === 'incentive' ? 'INCENTIVE' : 'STANDARD')
+    const nextPlacement = searchParams.get('placement') === 'incentive' ? 'INCENTIVE' : 'STANDARD'
+    setOfferPlacement(nextPlacement)
     setEditingOfferId(offerId)
     setOfferFormError('')
-    if (!offerId) setOfferDraft(initialOfferDraft)
+    setGeoSearch('')
+    setImagePreviewState('idle')
+    if (!offerId) {
+      setOfferDraft(nextPlacement === 'INCENTIVE' ? initialIncentiveOfferDraft : initialOfferDraft)
+    }
   }, [pathname])
 
   useEffect(() => {
@@ -1263,7 +1426,7 @@ export default function DashboardOverview() {
       return
     }
 
-    const sourceOffer = [...seedCampaignOffers, ...customCampaignOffers].find((offer) => offer.id === editingOfferId)
+    const sourceOffer = [...allSeedCampaignOffers, ...customCampaignOffers].find((offer) => offer.id === editingOfferId)
     const override = managedCampaignOverrides.find((candidate) => candidate.id === editingOfferId)
     const offer = sourceOffer ? mergeCampaignOverride(sourceOffer, override) : undefined
     if (!offer || deletedCampaignIds.includes(editingOfferId)) {
@@ -1271,12 +1434,23 @@ export default function DashboardOverview() {
       return
     }
 
+    const geos = offer.countries?.length ? offer.countries : [offer.country]
+    const nextImage = new URL(
+      offer.imageSource || (offer.placement === 'INCENTIVE' ? `/affmine/preview_i/${offer.id}.png` : `/affmine/campaigns/${offer.id}.png`),
+      window.location.origin,
+    ).toString()
+    setImagePreviewState(nextImage ? 'loading' : 'idle')
     setOfferDraft({
       ...offer,
       payout: String(offer.payout),
-      offerTypes: offer.offerTypes?.length ? offer.offerTypes : ['CPL', 'SOI'],
-      device: offer.device?.length ? offer.device : ['Desktop'],
-      imageSource: new URL(offer.imageSource || `/affmine/campaigns/${offer.id}.png`, window.location.origin).toString(),
+      offerTypes: offer.offerTypes?.length
+        ? offer.offerTypes
+        : (offer.placement === 'INCENTIVE' ? ['CPI'] : ['CPL', 'SOI']),
+      requiresApproval: offer.placement === 'INCENTIVE' ? false : offerRequiresApproval(offer),
+      device: getCampaignDevices(offer),
+      country: geos[0] ?? offer.country,
+      countries: geos,
+      imageSource: nextImage,
       offerLink: offer.offerLink ?? '',
     })
     setOfferPlacement(offer.placement ?? (new URLSearchParams(window.location.search).get('placement') === 'incentive' ? 'INCENTIVE' : 'STANDARD'))
@@ -1403,7 +1577,42 @@ export default function DashboardOverview() {
 
   const updateOfferDraft = (field: keyof OfferDraft, value: string) => {
     setOfferDraft((draft) => ({ ...draft, [field]: value }))
+    if (field === 'imageSource') setImagePreviewState(value.trim() ? 'loading' : 'idle')
   }
+
+  const getDraftGeos = (draft: OfferDraft = offerDraft) => {
+    if (draft.countries?.length) return draft.countries
+    if (draft.country) return [draft.country]
+    return []
+  }
+
+  const setDraftGeos = (geos: string[]) => {
+    setOfferDraft((draft) => ({ ...draft, countries: geos, country: geos[0] ?? '' }))
+  }
+
+  const toggleDraftGeo = (geo: string) => {
+    setOfferDraft((draft) => {
+      const current = draft.countries?.length
+        ? draft.countries
+        : (draft.country ? [draft.country] : [])
+      const next = current.includes(geo)
+        ? current.filter((value) => value !== geo)
+        : [...current, geo]
+      return { ...draft, countries: next, country: next[0] ?? '' }
+    })
+  }
+
+  const previewImageSrc = (() => {
+    const raw = (offerDraft.imageSource ?? '').trim()
+    if (!raw) return ''
+    if (raw.startsWith('/') && !raw.startsWith('//')) return raw
+    try {
+      const parsed = new URL(raw)
+      return ['http:', 'https:'].includes(parsed.protocol) ? parsed.toString() : ''
+    } catch {
+      return ''
+    }
+  })()
 
   const toggleOfferType = (type: string) => {
     setOfferDraft((draft) => ({
@@ -1443,7 +1652,7 @@ export default function DashboardOverview() {
       setOfferFormError('Enter a numeric offer ID.')
       return
     }
-    if ([...seedCampaignOffers, ...customCampaignOffers].some((campaign) => campaign.id === id && campaign.id !== editingOfferId)) {
+    if ([...allSeedCampaignOffers, ...customCampaignOffers].some((campaign) => campaign.id === id && campaign.id !== editingOfferId)) {
       setOfferFormError('An offer with this ID already exists.')
       return
     }
@@ -1451,18 +1660,38 @@ export default function DashboardOverview() {
       setOfferFormError('Complete the required offer details and select at least one device.')
       return
     }
-    try {
-      if (!['http:', 'https:'].includes(new URL(imageSource).protocol) || (offerLink && !['http:', 'https:'].includes(new URL(offerLink).protocol))) {
-        throw new Error('Invalid URL')
+    const isValidHttpOrPath = (value: string) => {
+      if (value.startsWith('/') && !value.startsWith('//')) return true
+      try {
+        return ['http:', 'https:'].includes(new URL(value).protocol)
+      } catch {
+        return false
       }
-    } catch {
-      setOfferFormError('Enter valid image and offer URLs.')
+    }
+    if (!isValidHttpOrPath(imageSource) || (offerLink && !isValidHttpOrPath(offerLink))) {
+      setOfferFormError('Enter valid image and offer URLs (https://… or /affmine/…).')
       return
     }
 
-    const sourceOffer = [...seedCampaignOffers, ...customCampaignOffers].find((campaign) => campaign.id === id)
+    const sourceOffer = [...allSeedCampaignOffers, ...customCampaignOffers].find((campaign) => campaign.id === id)
     const override = managedCampaignOverrides.find((campaign) => campaign.id === id)
     const existingOffer = sourceOffer ? mergeCampaignOverride(sourceOffer, override) : undefined
+    const placement = existingOffer?.placement ?? offerPlacement
+    const isIncentive = placement === 'INCENTIVE'
+    // Incentive catalog is Content Locker / OfferWall only — default open View, no Apply gate.
+    const requiresApproval = isIncentive ? false : offerDraft.requiresApproval
+    const selectedGeos = Array.from(new Set(
+      (offerDraft.countries?.length
+        ? offerDraft.countries
+        : (offerDraft.country ? [offerDraft.country] : []))
+        .map((geo) => geo.trim().toUpperCase())
+        .filter(Boolean),
+    ))
+    if (!selectedGeos.length) {
+      setOfferFormError('Select at least one geo.')
+      return
+    }
+    const primaryCountry = selectedGeos[0]
     const newOffer: CampaignOffer = {
       ...offerDraft,
       id,
@@ -1470,17 +1699,20 @@ export default function DashboardOverview() {
       payout,
       imageSource,
       offerLink,
-      country: offerDraft.country ?? 'US',
-      category: offerDraft.category ?? 'E-mail Submit',
+      country: primaryCountry,
+      countries: selectedGeos.length > 1 ? selectedGeos : undefined,
+      category: offerDraft.category ?? (isIncentive ? 'App Install' : 'E-mail Submit'),
       description,
-      action: existingOffer?.action ?? 'View',
+      requiresApproval,
+      // Catalog access for publishers without an application: Apply if approval is required, otherwise open View.
+      action: requiresApproval ? 'Apply' : 'View',
       isHot: existingOffer?.isHot ?? false,
       status: existingOffer?.status ?? 'ACTIVE',
-      placement: existingOffer?.placement ?? offerPlacement,
+      placement,
       createdAt: existingOffer?.createdAt ?? seedCampaignAddedAt[id] ?? new Date().toISOString(),
     }
     try {
-      if (editingOfferId && seedCampaignOffers.some((campaign) => campaign.id === editingOfferId)) {
+      if (editingOfferId && allSeedCampaignOffers.some((campaign) => campaign.id === editingOfferId)) {
         const updatedOverrides = [...managedCampaignOverrides.filter((campaign) => campaign.id !== id), newOffer]
         window.localStorage.setItem(campaignOverridesStorageKey, JSON.stringify(updatedOverrides))
         setManagedCampaignOverrides(updatedOverrides)
@@ -1491,18 +1723,33 @@ export default function DashboardOverview() {
         window.localStorage.setItem(customOffersStorageKey, JSON.stringify(updatedOffers))
         setCustomCampaignOffers(updatedOffers)
       }
+      if (isIncentive) {
+        let savedActive: string[] = activeIncentiveOfferIds
+        try {
+          const raw = window.localStorage.getItem(activeIncentiveOffersStorageKey)
+          const parsed = raw ? JSON.parse(raw) as unknown : null
+          if (Array.isArray(parsed)) {
+            savedActive = parsed.filter((value): value is string => typeof value === 'string')
+          }
+        } catch {
+          savedActive = activeIncentiveOfferIds
+        }
+        const nextActive = savedActive.includes(id) ? savedActive : [...savedActive, id]
+        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(nextActive))
+        setActiveIncentiveOfferIds(nextActive)
+      }
     } catch {
       setOfferFormError('Offer could not be saved in this browser.')
       return
     }
 
-    setOfferDraft(initialOfferDraft)
+    setOfferDraft(isIncentive ? initialIncentiveOfferDraft : initialOfferDraft)
     setEditingOfferId(null)
     setCampaignSearch('')
     setAppliedCampaignFilters({ country: 'All', device: 'All', category: 'All', type: 'All' })
     setCampaignFilters({ country: 'All', device: 'All', category: 'All', type: 'All' })
     setCampaignPage(1)
-    router.push('/campaigns/browse')
+    router.push(isIncentive ? '/incentive_offers' : '/campaigns/browse')
   }
 
   const sortCampaignsBy = (key: 'id' | 'name' | 'payout') => {
@@ -1548,14 +1795,12 @@ export default function DashboardOverview() {
   const reportPage = reportPages[pathname]
   const tablePage = tablePages[pathname]
   const campaignDetail = pathname.match(/^\/campaigns\/(\d+)$/)
-  const allCampaignOffers = [...seedCampaignOffers, ...customCampaignOffers]
+  const allCampaignOffers = [...seedCampaignOffers, ...seedIncentiveOffers, ...customCampaignOffers]
     .filter((campaign) => !deletedCampaignIds.includes(campaign.id))
     .map((campaign) => mergeCampaignOverride(campaign, managedCampaignOverrides.find((override) => override.id === campaign.id)))
   const campaignOffers = allCampaignOffers.filter((campaign) => {
-    if (seedCampaignOffers.some((seed) => seed.id === campaign.id)) return true
-    return pathname === '/incentive_offers'
-      ? campaign.placement === 'INCENTIVE'
-      : campaign.placement !== 'INCENTIVE'
+    const isIncentiveOffer = campaign.placement === 'INCENTIVE'
+    return pathname === '/incentive_offers' ? isIncentiveOffer : !isIncentiveOffer
   })
   const featuredCampaigns = featuredCampaignsFromOffers(allCampaignOffers)
   const featured = featuredCampaigns.length ? featuredCampaigns[campaignIndex % featuredCampaigns.length] : undefined
@@ -1590,43 +1835,68 @@ export default function DashboardOverview() {
   const isWizard = isContentLockerWizard || isOfferWallWizard
   const isDashboard = pathname === '/dashboard'
   const isCampaignBrowse = pathname === '/campaigns/browse'
+  const isIncentiveOffers = pathname === '/incentive_offers'
   const isCampaignAdd = pathname === '/campaigns/add'
   const isOfferApprovals = pathname === '/campaigns/approvals'
   const isPublisherAccounts = pathname === '/account/publishers'
-  const isCampaignCatalog = isCampaignBrowse || pathname === '/campaigns/new' || pathname === '/incentive_offers'
-  const canManageOffers = userRole === 'MANAGER' && (isCampaignBrowse || pathname === '/incentive_offers')
+  const isCampaignCatalog = isCampaignBrowse || pathname === '/campaigns/new' || isIncentiveOffers
+  const canManageOffers = userRole === 'MANAGER' && (isCampaignBrowse || isIncentiveOffers)
   const pageTitle = isDashboard ? 'DASHBOARD'
     : isContentLockerWizard ? (pathname.endsWith('/new') ? 'NEW CONTENT LOCKER' : 'EDIT CONTENT LOCKER')
       : isOfferWallWizard ? (pathname.endsWith('/new') ? 'NEW OFFERWALL' : 'EDIT OFFERWALL')
         : isCampaignBrowse ? 'Browse campaigns'
-          : isOfferApprovals ? 'Offer Approval'
-            : isPublisherAccounts ? 'Publishers'
-              : isCampaignAdd ? (editingOfferId ? 'Edit offer' : 'Add offer')
-                : reportPage?.title ?? tablePage?.title ?? pageTitles[pathname] ?? 'Account'
+          : isIncentiveOffers ? ''
+            : isOfferApprovals ? 'Offer Approval'
+              : isPublisherAccounts ? 'Publishers'
+                : isCampaignAdd
+                  ? (editingOfferId
+                    ? (offerPlacement === 'INCENTIVE' ? 'Edit incentive offer' : 'Edit offer')
+                    : (offerPlacement === 'INCENTIVE' ? 'Add incentive offer' : 'Add offer'))
+                  : reportPage?.title ?? tablePage?.title ?? pageTitles[pathname] ?? 'Account'
+  const toggleIncentiveOfferActive = (campaignId: string) => {
+    setActiveIncentiveOfferIds((current) => {
+      const next = current.includes(campaignId)
+        ? current.filter((id) => id !== campaignId)
+        : [...current, campaignId]
+      try {
+        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(next))
+      } catch { /* ignore */ }
+      return next
+    })
+  }
   const publisherOfferActionById = new Map(
     offerApplications.map((application) => [
       application.campaignId,
       application.status === 'APPROVED' ? 'View' as const : application.status === 'PENDING' ? 'Pending' as const : null,
     ]).filter((entry): entry is [string, 'View' | 'Pending'] => Boolean(entry[1])),
   )
-  const getOfferActionKind = (campaign: { id: string; action?: 'Apply' | 'Pending' | 'View' }) => {
+  const getOfferActionKind = (campaign: { id: string; action?: 'Apply' | 'Pending' | 'View'; requiresApproval?: boolean }) => {
     if (userRole === 'MANAGER') return 'View' as const
+    const catalogOffer = allCampaignOffers.find((offer) => offer.id === campaign.id)
     const catalogAction = campaign.action
-      ?? allCampaignOffers.find((offer) => offer.id === campaign.id)?.action
-      ?? 'Apply'
+      ?? catalogOffer?.action
+      ?? (offerRequiresApproval({
+        action: campaign.action ?? 'Apply',
+        requiresApproval: campaign.requiresApproval ?? catalogOffer?.requiresApproval,
+      }) ? 'Apply' : 'View')
     return publisherOfferActionById.get(campaign.id) ?? catalogAction
   }
+  const isIncentiveCampaign = (campaign: { placement?: 'STANDARD' | 'INCENTIVE' } | undefined) => (
+    campaign?.placement === 'INCENTIVE'
+  )
   /** Pending applications stay closed until a manager approves; Apply/View (and managers) may navigate. */
-  const canNavigateOffer = (campaign: { id: string; action?: 'Apply' | 'Pending' | 'View' }) => (
+  const canNavigateOffer = (campaign: { id: string; action?: 'Apply' | 'Pending' | 'View'; requiresApproval?: boolean; placement?: 'STANDARD' | 'INCENTIVE' }) => (
     userRole === 'MANAGER' || getOfferActionKind(campaign) !== 'Pending'
   )
   // Lock pending offers for anyone who is not a manager — including while role is still loading —
   // so tracking URLs never flash before approval.
   const detailedCampaignLocked = Boolean(
     detailedCampaign
+    && !isIncentiveCampaign(detailedCampaign)
     && userRole !== 'MANAGER'
     && getOfferActionKind(detailedCampaign) === 'Pending',
   )
+  const detailedCampaignIncentiveOnly = Boolean(detailedCampaign && isIncentiveCampaign(detailedCampaign))
 
   useEffect(() => {
     // Pending offers cannot be opened/used until a manager approves them.
@@ -1855,16 +2125,24 @@ export default function DashboardOverview() {
       setUpdatingPublisherId(null)
     }
   }
+  const campaignCatalogOrder = new Map(campaignOffers.map((campaign, index) => [campaign.id, index]))
+  const getCampaignGeos = (campaign: CampaignOffer) => (
+    campaign.countries?.length ? campaign.countries : [campaign.country]
+  )
   const filteredCampaigns = campaignOffers
     .filter((campaign) => {
       const searchTerm = campaignSearch.trim().toLowerCase()
+      const geos = getCampaignGeos(campaign)
       return (!searchTerm || `${campaign.id} ${campaign.name}`.toLowerCase().includes(searchTerm))
-        && (appliedCampaignFilters.country === 'All' || campaign.country === appliedCampaignFilters.country)
-        && (appliedCampaignFilters.device === 'All' || ['Windows', 'Mac', 'Android', 'iPhone', 'iPad', 'Mobile (Other)'].includes(appliedCampaignFilters.device))
+        && (appliedCampaignFilters.country === 'All' || geos.includes(appliedCampaignFilters.country))
+        && (appliedCampaignFilters.device === 'All' || getCampaignDevices(campaign).includes(appliedCampaignFilters.device))
         && (appliedCampaignFilters.category === 'All' || appliedCampaignFilters.category === 'CPL SOI')
         && (appliedCampaignFilters.type === 'All' || appliedCampaignFilters.type === 'E-mail Submit')
     })
     .sort((first, second) => {
+      if (campaignSort.key === 'featured') {
+        return (campaignCatalogOrder.get(first.id) ?? 0) - (campaignCatalogOrder.get(second.id) ?? 0)
+      }
       const order = campaignSort.key === 'id'
         ? Number(first.id) - Number(second.id)
         : campaignSort.key === 'payout'
@@ -1879,7 +2157,7 @@ export default function DashboardOverview() {
     if (userRole !== 'MANAGER' || !window.confirm(`Delete offer #${campaign.id} - ${campaign.name}?`)) return
 
     try {
-      if (seedCampaignOffers.some((seed) => seed.id === campaign.id)) {
+      if (allSeedCampaignOffers.some((seed) => seed.id === campaign.id)) {
         const updatedDeletedIds = [...new Set([...deletedCampaignIds, campaign.id])]
         window.localStorage.setItem(deletedCampaignsStorageKey, JSON.stringify(updatedDeletedIds))
         setDeletedCampaignIds(updatedDeletedIds)
@@ -1904,7 +2182,7 @@ export default function DashboardOverview() {
 
     const updatedOffer = { ...campaign, ...updates }
     try {
-      if (seedCampaignOffers.some((seed) => seed.id === campaign.id)) {
+      if (allSeedCampaignOffers.some((seed) => seed.id === campaign.id)) {
         const updatedOverrides = [...managedCampaignOverrides.filter((offer) => offer.id !== campaign.id), updatedOffer]
         window.localStorage.setItem(campaignOverridesStorageKey, JSON.stringify(updatedOverrides))
         setManagedCampaignOverrides(updatedOverrides)
@@ -2040,10 +2318,10 @@ export default function DashboardOverview() {
           </Link>
           {visibleMenuGroups.slice(0, 4).map(({ label, iconClass, items }) => (
             <div className={styles.navGroup} key={label}>
-              <button type="button" className={`${styles.navLink} ${items.some((item) => isMenuItemActive(pathname, item.href)) ? styles.navActive : ''}`} aria-expanded={openGroups.includes(label)} onClick={() => toggleGroup(label)}>
-                <i className={`${iconClass} ${styles.navIcon}`} aria-hidden="true" /><span>{label}</span><span className={`${styles.navCaret} ${items.some((item) => isMenuItemActive(pathname, item.href)) ? styles.navCaretActive : ''}`} aria-hidden="true" />
+              <button type="button" className={`${styles.navLink} ${items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly })) ? styles.navActive : ''}`} aria-expanded={openGroups.includes(label)} onClick={() => toggleGroup(label)}>
+                <i className={`${iconClass} ${styles.navIcon}`} aria-hidden="true" /><span>{label}</span><span className={`${styles.navCaret} ${items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly })) ? styles.navCaretActive : ''}`} aria-hidden="true" />
               </button>
-              {(openGroups.includes(label) || items.some((item) => isMenuItemActive(pathname, item.href))) && <div className={styles.submenu}>{items.map((item) => <Link className={isMenuItemActive(pathname, item.href) ? styles.submenuActive : ''} href={item.href} key={item.href} aria-current={isMenuItemActive(pathname, item.href) ? 'page' : undefined} onClick={() => setMobileNavOpen(false)}>{item.label}</Link>)}</div>}
+              {(openGroups.includes(label) || items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly }))) && <div className={styles.submenu}>{items.map((item) => <Link className={isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly }) ? styles.submenuActive : ''} href={item.href} key={item.href} aria-current={isMenuItemActive(pathname, item.href, { incentiveDetail: detailedCampaignIncentiveOnly }) ? 'page' : undefined} onClick={() => setMobileNavOpen(false)}>{item.label}</Link>)}</div>}
             </div>
           ))}
           <Link className={`${styles.navLink} ${pathname === '/payments' ? styles.navActive : ''}`} href="/payments" aria-current={pathname === '/payments' ? 'page' : undefined} onClick={() => setMobileNavOpen(false)}><i className={`fa fa-money ${styles.navIcon}`} aria-hidden="true" /><span>Payments</span></Link>
@@ -2085,8 +2363,8 @@ export default function DashboardOverview() {
 
       <main className={`${styles.main} ${desktopSidebarHidden ? styles.mainExpanded : ''}`}>
         {!campaignDetail && (
-          <div className={styles.pageHeader}>
-            <h1>{pageTitle}</h1>
+          <div className={`${styles.pageHeader} ${!pageTitle ? styles.pageHeaderEmpty : ''}`}>
+            {pageTitle ? <h1>{pageTitle}</h1> : null}
             {isDashboard && <p>Server time: <time>{time}</time></p>}
             <div className={styles.pageHeaderRight}>
               {reportPage && (
@@ -2157,88 +2435,457 @@ export default function DashboardOverview() {
           ))}
         </div> : null}
 
-        {isCampaignAdd && userRole !== 'MANAGER' ? (
+        {isCampaignAdd && userRole === null ? (
+          <section className={`${styles.panel} ${styles.dataPage}`}>
+            <h2 className={styles.sectionTitle}>OFFER MANAGEMENT</h2>
+            <p className={styles.addOfferLoading}>Loading offer editor…</p>
+          </section>
+        ) : isCampaignAdd && userRole !== 'MANAGER' ? (
           <section className={`${styles.panel} ${styles.dataPage}`}>
             <h2 className={styles.sectionTitle}>OFFER MANAGEMENT</h2>
             <p>Manager access is required to add or edit offers.</p>
-            <Link href="/campaigns/browse" className={styles.pageSecondaryButton}>Back to campaigns</Link>
+            <Link href={offerPlacement === 'INCENTIVE' ? '/incentive_offers' : '/campaigns/browse'} className={styles.pageSecondaryButton}>
+              {offerPlacement === 'INCENTIVE' ? 'Back to incentive offers' : 'Back to campaigns'}
+            </Link>
           </section>
         ) : isCampaignAdd ? (
           <section className={`${styles.panel} ${styles.dataPage} ${styles.addOfferPage}`}>
             <div className={styles.dataPageHeading}>
-              <h2>{editingOfferId ? 'EDIT OFFER' : offerPlacement === 'INCENTIVE' ? 'ADD INCENTIVE OFFER' : 'ADD OFFER'}</h2>
-              <Link href="/campaigns/browse" className={styles.pageSecondaryButton}>Back to campaigns</Link>
+              <h2>
+                {editingOfferId
+                  ? (offerPlacement === 'INCENTIVE' ? 'EDIT INCENTIVE OFFER' : 'EDIT OFFER')
+                  : (offerPlacement === 'INCENTIVE' ? 'ADD INCENTIVE OFFER' : 'ADD OFFER')}
+              </h2>
+              <Link href={offerPlacement === 'INCENTIVE' ? '/incentive_offers' : '/campaigns/browse'} className={styles.pageSecondaryButton}>
+                {offerPlacement === 'INCENTIVE' ? 'Back to incentive offers' : 'Back to campaigns'}
+              </Link>
             </div>
+            {offerPlacement === 'INCENTIVE' && (
+              <div className={styles.addIncentiveNotice} role="note">
+                <span className={styles.addIncentiveNoticeBadge}>Incentive</span>
+                <p>
+                  These campaigns run only in <Link href="/contentlocker/new">Content Locker</Link> and <Link href="/offerwall/new">OfferWall</Link>.
+                  Publishers cannot direct-link them.
+                </p>
+              </div>
+            )}
             {offerFormError && <div role="alert" className={styles.error}>{offerFormError}</div>}
-            <form className={styles.addOfferForm} onSubmit={submitOffer}>
-              <div className={styles.addOfferFields}>
-                <label className={styles.addOfferField}>Offer ID
-                  <input name="offerId" type="text" inputMode="numeric" pattern="[0-9]+" value={offerDraft.id} onChange={(event) => updateOfferDraft('id', event.target.value)} readOnly={Boolean(editingOfferId)} required />
-                </label>
-                <label className={styles.addOfferField}>Offer name
-                  <input name="offerName" type="text" value={offerDraft.name} onChange={(event) => updateOfferDraft('name', event.target.value)} required />
-                </label>
-                <label className={styles.addOfferField}>Payout
-                  <input name="payout" type="number" min="0.01" step="0.01" value={offerDraft.payout} onChange={(event) => updateOfferDraft('payout', event.target.value)} required />
-                </label>
-                <fieldset className={`${styles.addOfferField} ${styles.addOfferTypeField}`}>
-                  <legend>Offer type</legend>
-                  <div className={styles.addOfferTypeOptions} role="group" aria-label="Offer types">
-                    {['CPL', 'CPE', 'CPI', 'SOI'].map((type) => {
-                      const selected = offerDraft.offerTypes.includes(type)
-                      return <button key={type} type="button" aria-pressed={selected} className={`${styles.addOfferTypeButton} ${selected ? styles.addOfferTypeSelected : ''} ${type === 'SOI' ? styles.addOfferTypeSoi : ''}`} onClick={() => toggleOfferType(type)}>{type}</button>
-                    })}
-                  </div>
-                </fieldset>
-                <label className={styles.addOfferField}>Category
-                  <select value={offerDraft.category} onChange={(event) => updateOfferDraft('category', event.target.value)}>
-                    {offerCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-                  </select>
-                </label>
-                <label className={styles.addOfferField}>Geo
-                  <select value={offerDraft.country} onChange={(event) => updateOfferDraft('country', event.target.value)}>
-                    {campaignFilterOptions.country.filter((option) => option.value !== 'All').map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </label>
-                <fieldset className={`${styles.addOfferField} ${styles.addOfferTypeField}`}>
-                  <legend>Device</legend>
-                  <div className={styles.addOfferTypeOptions} role="group" aria-label="Device options">
-                    {[{ value: 'All', label: 'All' }, ...campaignFilterOptions.device.filter((option) => option.value !== 'All')].map((option) => {
-                      const { value, label } = option
-                      const selected = value === 'All'
-                        ? offerDraft.device.length === campaignFilterOptions.device.filter((candidate) => candidate.value !== 'All').length
-                        : offerDraft.device.includes(value)
+            <form className={`${styles.addOfferForm} ${offerPlacement === 'INCENTIVE' ? styles.addIncentiveOfferForm : ''}`} onSubmit={submitOffer}>
+              {offerPlacement === 'INCENTIVE' ? (
+                <>
+                  <section className={styles.addOfferSection}>
+                    <header className={styles.addOfferSectionHead}>
+                      <h3><span className={styles.addOfferSectionIndex}>01</span> Campaign details</h3>
+                      <p>ID, name, payout, and conversion type for the catalog row.</p>
+                    </header>
+                    <div className={styles.addOfferFields}>
+                      <label className={styles.addOfferField}>Offer ID
+                        <div className={styles.addOfferIdRow}>
+                          <input name="offerId" type="text" inputMode="numeric" pattern="[0-9]+" value={offerDraft.id} onChange={(event) => updateOfferDraft('id', event.target.value)} readOnly={Boolean(editingOfferId)} required />
+                          {!editingOfferId && (
+                            <button
+                              type="button"
+                              className={styles.addOfferGhostButton}
+                              onClick={() => {
+                                const maxId = Math.max(0, ...[...allSeedCampaignOffers, ...customCampaignOffers].map((offer) => Number(offer.id) || 0))
+                                updateOfferDraft('id', String(maxId + 1))
+                              }}
+                            >
+                              Next ID
+                            </button>
+                          )}
+                        </div>
+                      </label>
+                      <label className={styles.addOfferField}>Offer name
+                        <input
+                          name="offerName"
+                          type="text"
+                          placeholder="Mistplay - iPhone/iPad - CPE - US"
+                          value={offerDraft.name}
+                          onChange={(event) => updateOfferDraft('name', event.target.value)}
+                          required
+                        />
+                      </label>
+                      <label className={styles.addOfferField}>Payout (USD)
+                        <input name="payout" type="number" min="0.01" step="0.01" value={offerDraft.payout} onChange={(event) => updateOfferDraft('payout', event.target.value)} required />
+                      </label>
+                      <fieldset className={`${styles.addOfferField} ${styles.addOfferTypeField}`}>
+                        <legend>Offer type</legend>
+                        <div className={styles.addOfferTypeOptions} role="group" aria-label="Offer types">
+                          {incentiveOfferTypeOptions.map((type) => {
+                            const selected = offerDraft.offerTypes.includes(type)
+                            return <button key={type} type="button" aria-pressed={selected} className={`${styles.addOfferTypeButton} ${selected ? styles.addOfferTypeSelected : ''} ${type === 'SOI' ? styles.addOfferTypeSoi : ''}`} onClick={() => toggleOfferType(type)}>{type}</button>
+                          })}
+                        </div>
+                      </fieldset>
+                      <label className={styles.addOfferField}>Category
+                        <select value={offerDraft.category} onChange={(event) => updateOfferDraft('category', event.target.value)}>
+                          {offerCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                  </section>
 
-                      return <button key={value} type="button" aria-pressed={selected} className={`${styles.addOfferTypeButton} ${selected ? styles.addOfferTypeSelected : ''}`} onClick={() => {
-                        if (value === 'All') {
-                          setOfferDraft((draft) => ({ ...draft, device: campaignFilterOptions.device.filter((candidate) => candidate.value !== 'All').map((candidate) => candidate.value) }))
-                          return
-                        }
-                        toggleOfferDevice(value)
-                      }}>{label}</button>
-                    })}
+                  <section className={styles.addOfferSection}>
+                    <header className={styles.addOfferSectionHead}>
+                      <h3><span className={styles.addOfferSectionIndex}>02</span> Targeting</h3>
+                      <p>Geos and devices shown in the incentive catalog.</p>
+                    </header>
+                    <div className={styles.addOfferFields}>
+                      <fieldset className={`${styles.addOfferField} ${styles.addOfferTypeField} ${styles.addOfferWideField} ${styles.addOfferGeoField}`}>
+                        <legend>Geo</legend>
+                        {(() => {
+                          const geoOptions = campaignFilterOptions.country.filter((option) => option.value !== 'All')
+                          const selectedGeos = getDraftGeos()
+                          const query = geoSearch.trim().toLowerCase()
+                          const filteredGeos = query
+                            ? geoOptions.filter((option) => (
+                              option.value.toLowerCase().includes(query)
+                              || option.label.toLowerCase().includes(query)
+                            ))
+                            : geoOptions
+                          const allSelected = geoOptions.every((option) => selectedGeos.includes(option.value))
+
+                          return (
+                            <div className={styles.addOfferGeoPicker}>
+                              <div className={styles.addOfferGeoToolbar}>
+                                <label className={styles.addOfferGeoSearch}>
+                                  <Search size={13} aria-hidden="true" />
+                                  <input
+                                    type="search"
+                                    value={geoSearch}
+                                    onChange={(event) => setGeoSearch(event.target.value)}
+                                    placeholder="Search country or code…"
+                                    aria-label="Search geos"
+                                  />
+                                  {geoSearch ? (
+                                    <button
+                                      type="button"
+                                      className={styles.addOfferGeoSearchClear}
+                                      aria-label="Clear geo search"
+                                      onClick={() => setGeoSearch('')}
+                                    >
+                                      <X size={12} aria-hidden="true" />
+                                    </button>
+                                  ) : null}
+                                </label>
+                                <div className={styles.addOfferGeoToolbarActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.addOfferTextButton}
+                                    onClick={() => setDraftGeos(geoOptions.map((option) => option.value))}
+                                    disabled={allSelected}
+                                  >
+                                    Select all
+                                  </button>
+                                  <span className={styles.addOfferGeoToolbarSep} aria-hidden="true">·</span>
+                                  <button
+                                    type="button"
+                                    className={styles.addOfferTextButton}
+                                    onClick={() => setDraftGeos([])}
+                                    disabled={selectedGeos.length === 0}
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className={styles.addOfferGeoSelected} aria-live="polite">
+                                {selectedGeos.length ? selectedGeos.map((geo) => {
+                                  const option = geoOptions.find((candidate) => candidate.value === geo)
+                                  const Flag = CountryFlags[geo.toUpperCase() as keyof typeof CountryFlags]
+                                  return (
+                                    <button
+                                      key={geo}
+                                      type="button"
+                                      className={styles.addOfferGeoTag}
+                                      onClick={() => toggleDraftGeo(geo)}
+                                      title={`Remove ${option?.label ?? geo}`}
+                                    >
+                                      {Flag ? <Flag className={styles.addOfferGeoFlag} aria-hidden="true" /> : null}
+                                      <span>{geo}</span>
+                                      <X size={11} aria-hidden="true" />
+                                    </button>
+                                  )
+                                }) : (
+                                  <span className={styles.addOfferGeoEmptyHint}>No geos selected</span>
+                                )}
+                                <span className={styles.addOfferGeoCount}>{selectedGeos.length} selected</span>
+                              </div>
+
+                              <div className={styles.addOfferGeoList} role="group" aria-label="Geo options">
+                                {filteredGeos.map((option) => {
+                                  const selected = selectedGeos.includes(option.value)
+                                  const Flag = option.flag
+                                    ? CountryFlags[option.flag as keyof typeof CountryFlags]
+                                    : null
+                                  return (
+                                    <button
+                                      key={option.value}
+                                      type="button"
+                                      aria-pressed={selected}
+                                      title={option.label}
+                                      className={`${styles.addOfferGeoChip} ${selected ? styles.addOfferGeoChipSelected : ''}`}
+                                      onClick={() => toggleDraftGeo(option.value)}
+                                    >
+                                      {Flag ? <Flag className={styles.addOfferGeoFlag} aria-hidden="true" /> : null}
+                                      <span className={styles.addOfferGeoCode}>{option.value}</span>
+                                      <span className={styles.addOfferGeoLabel}>{option.label}</span>
+                                      {selected ? <Check size={12} className={styles.addOfferGeoCheck} aria-hidden="true" /> : null}
+                                    </button>
+                                  )
+                                })}
+                                {!filteredGeos.length && (
+                                  <div className={styles.addOfferGeoEmpty}>No countries match “{geoSearch.trim()}”.</div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })()}
+                      </fieldset>
+                      <fieldset className={`${styles.addOfferField} ${styles.addOfferTypeField} ${styles.addOfferWideField}`}>
+                        <legend className={styles.addOfferDeviceLegend}>
+                          <span>Device</span>
+                          <CampaignDeviceIcons devices={offerDraft.device} />
+                        </legend>
+                        <div className={styles.addOfferTypeOptions} role="group" aria-label="Device options">
+                          {[{ value: 'All', label: 'All' }, ...campaignFilterOptions.device.filter((option) => option.value !== 'All')].map((option) => {
+                            const { value, label } = option
+                            const selected = value === 'All'
+                              ? offerDraft.device.length === campaignFilterOptions.device.filter((candidate) => candidate.value !== 'All').length
+                              : offerDraft.device.includes(value)
+                            return <button key={value} type="button" aria-pressed={selected} className={`${styles.addOfferTypeButton} ${selected ? styles.addOfferTypeSelected : ''}`} onClick={() => {
+                              if (value === 'All') {
+                                setOfferDraft((draft) => ({ ...draft, device: campaignFilterOptions.device.filter((candidate) => candidate.value !== 'All').map((candidate) => candidate.value) }))
+                                return
+                              }
+                              toggleOfferDevice(value)
+                            }}>{label}</button>
+                          })}
+                        </div>
+                        <p className={styles.addOfferFieldHint}>App Install CPI/CPE offers usually use iPhone, iPad, and Mobile (Other).</p>
+                      </fieldset>
+                    </div>
+                  </section>
+
+                  <section className={styles.addOfferSection}>
+                    <header className={styles.addOfferSectionHead}>
+                      <h3><span className={styles.addOfferSectionIndex}>03</span> Creative & destination</h3>
+                      <p>Catalog thumbnail and locker conversion URL.</p>
+                    </header>
+                    <div className={styles.addOfferFields}>
+                      <div className={`${styles.addOfferField} ${styles.addOfferWideField} ${styles.addOfferThumbField}`}>
+                        <span className={styles.addOfferThumbLabel}>Preview thumbnail URL</span>
+                        <div className={styles.addOfferThumbRow}>
+                          <input
+                            name="imageSource"
+                            type="text"
+                            inputMode="url"
+                            placeholder="/affmine/preview_i/34928.png"
+                            value={offerDraft.imageSource}
+                            onChange={(event) => updateOfferDraft('imageSource', event.target.value)}
+                            required
+                            aria-describedby="incentive-thumb-preview-status"
+                          />
+                          <div
+                            className={`${styles.addOfferThumbPreview} ${imagePreviewState === 'ready' ? styles.addOfferThumbPreviewReady : ''} ${imagePreviewState === 'error' ? styles.addOfferThumbPreviewError : ''}`}
+                            aria-live="polite"
+                          >
+                            {previewImageSrc && imagePreviewState !== 'error' ? (
+                              // Native img so relative + any https URL preview reliably (Next/Image remote allowlist).
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                key={previewImageSrc}
+                                src={previewImageSrc}
+                                alt="Catalog thumbnail preview"
+                                width={50}
+                                height={50}
+                                onLoad={() => setImagePreviewState('ready')}
+                                onError={() => setImagePreviewState('error')}
+                              />
+                            ) : (
+                              <span className={styles.addOfferThumbPlaceholder}>50×50</span>
+                            )}
+                          </div>
+                        </div>
+                        <span
+                          id="incentive-thumb-preview-status"
+                          className={`${styles.addOfferFieldHint} ${imagePreviewState === 'ready' ? styles.addOfferHintOk : ''} ${imagePreviewState === 'error' || (!previewImageSrc && (offerDraft.imageSource ?? '').trim()) ? styles.addOfferHintError : ''}`}
+                        >
+                          {!previewImageSrc && (offerDraft.imageSource ?? '').trim()
+                            ? 'Enter a path like /affmine/preview_i/34928.png or a full https:// image URL.'
+                            : imagePreviewState === 'error'
+                              ? 'Could not load that image — check the path or URL.'
+                              : imagePreviewState === 'ready'
+                                ? 'Live 50×50 catalog thumbnail.'
+                                : previewImageSrc
+                                  ? 'Loading thumbnail…'
+                                  : 'Paste a local /affmine/… path or remote image URL to preview.'}
+                        </span>
+                      </div>
+
+                      <div className={`${styles.addOfferCatalogLive} ${styles.addOfferWideField}`} aria-label="Live catalog row preview">
+                        <div className={styles.addOfferCatalogLiveHead}>
+                          <span>Live catalog row</span>
+                          <span>Incentive Offers</span>
+                        </div>
+                        <div className={styles.addOfferCatalogLiveRow}>
+                          <span className={`${styles.incentiveCheckbox} ${styles.incentiveCheckboxChecked}`} aria-hidden="true">
+                            <span className={styles.incentiveCheckboxLabel} />
+                          </span>
+                          <span className={styles.addOfferCatalogLiveThumb}>
+                            {previewImageSrc && imagePreviewState === 'ready' ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={previewImageSrc} alt="" width={36} height={36} />
+                            ) : (
+                              <span>50×50</span>
+                            )}
+                          </span>
+                          <div className={styles.addOfferCatalogLiveMeta}>
+                            <div className={styles.addOfferCatalogLiveTitle}>
+                              <span className={styles.addOfferCatalogLiveName}>
+                                {(offerDraft.name || 'Offer name').trim()}
+                              </span>
+                              <strong className={styles.addOfferCatalogLivePayout}>
+                                ${Number(offerDraft.payout || 0).toFixed(2)}
+                              </strong>
+                            </div>
+                            <div className={styles.addOfferCatalogLiveSub}>
+                              <span>{offerDraft.category || 'App Install'}</span>
+                              <span aria-hidden="true">·</span>
+                              <span>{getDraftGeos().join(', ') || 'No geo'}</span>
+                              <span aria-hidden="true">·</span>
+                              <span>{(offerDraft.offerTypes[0] || 'CPI')}</span>
+                              <CampaignDeviceIcons devices={offerDraft.device} />
+                            </div>
+                          </div>
+                          <span className={`${styles.offerAction} ${styles.offerActionView}`}>
+                            <i className="fa fa-check" aria-hidden="true" />
+                            View
+                          </span>
+                        </div>
+                      </div>
+
+                      <label className={`${styles.addOfferField} ${styles.addOfferWideField}`}>Description
+                        <textarea
+                          name="description"
+                          rows={3}
+                          placeholder="Complete profile registration and mobile verification."
+                          value={offerDraft.description}
+                          onChange={(event) => updateOfferDraft('description', event.target.value)}
+                          required
+                        />
+                      </label>
+                      <label className={`${styles.addOfferField} ${styles.addOfferWideField}`}>
+                        Destination / conversion URL
+                        <input
+                          name="offerLink"
+                          type="text"
+                          inputMode="url"
+                          placeholder="https://example.com/offer"
+                          value={offerDraft.offerLink}
+                          onChange={(event) => updateOfferDraft('offerLink', event.target.value)}
+                          required={!editingOfferId}
+                        />
+                        <span className={styles.addOfferFieldHint}>Used inside Content Locker / OfferWall. Not published as a publisher tracking link.</span>
+                      </label>
+                    </div>
+                  </section>
+
+                  <div className={styles.addOfferActions}>
+                    <button type="submit" className={styles.pagePrimaryButton}>
+                      {editingOfferId ? <Check size={14} /> : <Plus size={14} />}
+                      {editingOfferId ? 'Save changes' : 'Add incentive offer'}
+                    </button>
+                    <Link href="/incentive_offers" className={styles.pageSecondaryButton}>Cancel</Link>
                   </div>
-                </fieldset>
-                <label className={`${styles.addOfferField} ${styles.addOfferWideField}`}>View image source
-                  <input name="imageSource" type="url" placeholder="https://example.com/offer-image.png" value={offerDraft.imageSource} onChange={(event) => updateOfferDraft('imageSource', event.target.value)} required />
-                </label>
-                {offerDraft.imageSource && (
-                  <div className={`${styles.addOfferImagePreview} ${styles.addOfferWideField}`}>
-                    <span>Preview</span>
-                    <Image src={offerDraft.imageSource} alt="Offer preview" width={160} height={100} unoptimized />
+                </>
+              ) : (
+                <>
+                  <div className={styles.addOfferFields}>
+                    <label className={styles.addOfferField}>Offer ID
+                      <input name="offerId" type="text" inputMode="numeric" pattern="[0-9]+" value={offerDraft.id} onChange={(event) => updateOfferDraft('id', event.target.value)} readOnly={Boolean(editingOfferId)} required />
+                    </label>
+                    <label className={styles.addOfferField}>Offer name
+                      <input name="offerName" type="text" placeholder="Rewards US - iPhone 18 Pro" value={offerDraft.name} onChange={(event) => updateOfferDraft('name', event.target.value)} required />
+                    </label>
+                    <label className={styles.addOfferField}>Payout
+                      <input name="payout" type="number" min="0.01" step="0.01" value={offerDraft.payout} onChange={(event) => updateOfferDraft('payout', event.target.value)} required />
+                    </label>
+                    <fieldset className={`${styles.addOfferField} ${styles.addOfferTypeField}`}>
+                      <legend>Offer type</legend>
+                      <div className={styles.addOfferTypeOptions} role="group" aria-label="Offer types">
+                        {standardOfferTypeOptions.map((type) => {
+                          const selected = offerDraft.offerTypes.includes(type)
+                          return <button key={type} type="button" aria-pressed={selected} className={`${styles.addOfferTypeButton} ${selected ? styles.addOfferTypeSelected : ''} ${type === 'SOI' ? styles.addOfferTypeSoi : ''}`} onClick={() => toggleOfferType(type)}>{type}</button>
+                        })}
+                      </div>
+                    </fieldset>
+                    <fieldset className={`${styles.addOfferField} ${styles.addOfferTypeField}`}>
+                      <legend>Need approval</legend>
+                      <div className={styles.addOfferTypeOptions} role="group" aria-label="Need approval">
+                        <button type="button" aria-pressed={offerDraft.requiresApproval} className={`${styles.addOfferTypeButton} ${offerDraft.requiresApproval ? styles.addOfferTypeSelected : ''}`} onClick={() => setOfferDraft((draft) => ({ ...draft, requiresApproval: true }))}>Yes</button>
+                        <button type="button" aria-pressed={!offerDraft.requiresApproval} className={`${styles.addOfferTypeButton} ${!offerDraft.requiresApproval ? styles.addOfferTypeSelected : ''}`} onClick={() => setOfferDraft((draft) => ({ ...draft, requiresApproval: false }))}>No</button>
+                      </div>
+                      <p className={styles.addOfferFieldHint}>
+                        {offerDraft.requiresApproval
+                          ? 'Publishers must apply. Tracking stays locked until a manager approves.'
+                          : 'Publishers can open and use this offer immediately (View).'}
+                      </p>
+                    </fieldset>
+                    <label className={styles.addOfferField}>Category
+                      <select value={offerDraft.category} onChange={(event) => updateOfferDraft('category', event.target.value)}>
+                        {offerCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                      </select>
+                    </label>
+                    <label className={styles.addOfferField}>Geo
+                      <select value={offerDraft.country} onChange={(event) => updateOfferDraft('country', event.target.value)}>
+                        {campaignFilterOptions.country.filter((option) => option.value !== 'All').map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </label>
+                    <fieldset className={`${styles.addOfferField} ${styles.addOfferTypeField} ${styles.addOfferWideField}`}>
+                      <legend>Device</legend>
+                      <div className={styles.addOfferTypeOptions} role="group" aria-label="Device options">
+                        {[{ value: 'All', label: 'All' }, ...campaignFilterOptions.device.filter((option) => option.value !== 'All')].map((option) => {
+                          const { value, label } = option
+                          const selected = value === 'All'
+                            ? offerDraft.device.length === campaignFilterOptions.device.filter((candidate) => candidate.value !== 'All').length
+                            : offerDraft.device.includes(value)
+                          return <button key={value} type="button" aria-pressed={selected} className={`${styles.addOfferTypeButton} ${selected ? styles.addOfferTypeSelected : ''}`} onClick={() => {
+                            if (value === 'All') {
+                              setOfferDraft((draft) => ({ ...draft, device: campaignFilterOptions.device.filter((candidate) => candidate.value !== 'All').map((candidate) => candidate.value) }))
+                              return
+                            }
+                            toggleOfferDevice(value)
+                          }}>{label}</button>
+                        })}
+                      </div>
+                    </fieldset>
+                    <label className={`${styles.addOfferField} ${styles.addOfferWideField}`}>View image source
+                      <input name="imageSource" type="url" placeholder="https://example.com/offer-image.png" value={offerDraft.imageSource} onChange={(event) => updateOfferDraft('imageSource', event.target.value)} required />
+                    </label>
+                    {offerDraft.imageSource && (
+                      <div className={`${styles.addOfferImagePreview} ${styles.addOfferWideField}`}>
+                        <span>Preview</span>
+                        <Image src={offerDraft.imageSource} alt="Offer preview" width={160} height={100} unoptimized />
+                      </div>
+                    )}
+                    <label className={`${styles.addOfferField} ${styles.addOfferWideField}`}>Description
+                      <textarea name="description" rows={4} value={offerDraft.description} onChange={(event) => updateOfferDraft('description', event.target.value)} required />
+                    </label>
+                    <label className={`${styles.addOfferField} ${styles.addOfferWideField}`}>Offer link
+                      <input name="offerLink" type="url" placeholder="https://example.com/offer" value={offerDraft.offerLink} onChange={(event) => updateOfferDraft('offerLink', event.target.value)} required={!editingOfferId} />
+                    </label>
                   </div>
-                )}
-                <label className={`${styles.addOfferField} ${styles.addOfferWideField}`}>Description
-                  <textarea name="description" rows={4} value={offerDraft.description} onChange={(event) => updateOfferDraft('description', event.target.value)} required />
-                </label>
-                <label className={`${styles.addOfferField} ${styles.addOfferWideField}`}>Offer link
-                  <input name="offerLink" type="url" placeholder="https://example.com/offer" value={offerDraft.offerLink} onChange={(event) => updateOfferDraft('offerLink', event.target.value)} required={!editingOfferId} />
-                </label>
-              </div>
-              <div className={styles.addOfferActions}>
-                <button type="submit" className={styles.pagePrimaryButton}>{editingOfferId ? <Check size={14} /> : <Plus size={14} />}{editingOfferId ? 'Save changes' : offerPlacement === 'INCENTIVE' ? 'Add incentive offer' : 'Add offer'}</button>
-                <Link href="/campaigns/browse" className={styles.pageSecondaryButton}>Cancel</Link>
-              </div>
+                  <div className={styles.addOfferActions}>
+                    <button type="submit" className={styles.pagePrimaryButton}>
+                      {editingOfferId ? <Check size={14} /> : <Plus size={14} />}
+                      {editingOfferId ? 'Save changes' : 'Add offer'}
+                    </button>
+                    <Link href="/campaigns/browse" className={styles.pageSecondaryButton}>Cancel</Link>
+                  </div>
+                </>
+              )}
             </form>
           </section>
         ) : reportPage ? (
@@ -2624,11 +3271,11 @@ export default function DashboardOverview() {
               )}
             </section>
 
-            <section className={`${styles.panel} ${styles.browseCampaigns}`}>
+            <section className={`${styles.panel} ${styles.browseCampaigns} ${isIncentiveOffers ? styles.incentiveCampaigns : ''}`}>
               <div className={styles.browseCampaignsHeading}>
                 <h2><Tags size={16} fill="currentColor" />CAMPAIGNS</h2>
                 <div className={styles.browseCampaignActions}>
-                  {userRole === 'MANAGER' && pathname !== '/campaigns/new' && <Link href={pathname === '/incentive_offers' ? '/campaigns/add?placement=incentive' : '/campaigns/add'} className={`${styles.pagePrimaryButton} ${styles.addOfferButton}`}><Plus size={14} />Add offer</Link>}
+                  {userRole === 'MANAGER' && pathname !== '/campaigns/new' && <Link href={isIncentiveOffers ? '/campaigns/add?placement=incentive' : '/campaigns/add'} className={`${styles.pagePrimaryButton} ${styles.addOfferButton}`}><Plus size={14} />Add offer</Link>}
                   <label className={styles.campaignTableSearch}><Search size={14} /><input type="search" placeholder="Search" aria-label="Search campaigns" value={campaignSearch} onChange={(event) => { setCampaignSearch(event.target.value); setCampaignPage(1) }} /></label>
                 </div>
               </div>
@@ -2641,10 +3288,10 @@ export default function DashboardOverview() {
                 </div>
               )}
               <div className={styles.campaignTableWrap}>
-                <table className={`${styles.campaignTable} ${canManageOffers ? styles.campaignTableManager : ''} ${pathname === '/incentive_offers' && canManageOffers ? styles.campaignTableManagerIncentive : ''}`}>
+                <table className={`${styles.campaignTable} ${isIncentiveOffers ? styles.campaignTableIncentive : ''} ${canManageOffers ? styles.campaignTableManager : ''} ${isIncentiveOffers && canManageOffers ? styles.campaignTableManagerIncentive : ''}`}>
                   <thead>
                     <tr>
-                      {pathname === '/incentive_offers' && <th>Active</th>}
+                      {isIncentiveOffers && <th>Active</th>}
                       <th aria-sort={campaignSort.key === 'id' ? (campaignSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}><button type="button" onClick={() => sortCampaignsBy('id')}>ID</button></th>
                       <th>View</th>
                       <th aria-sort={campaignSort.key === 'name' ? (campaignSort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}><button type="button" onClick={() => sortCampaignsBy('name')}>Name</button></th>
@@ -2654,45 +3301,86 @@ export default function DashboardOverview() {
                   </thead>
                   <tbody>
                     {visibleCampaigns.length ? visibleCampaigns.map((campaign) => {
-                      const CampaignCountryFlag = CountryFlags[campaign.country.toUpperCase() as keyof typeof CountryFlags]
-                      const campaignTypes = campaign.offerTypes?.length ? campaign.offerTypes : ['CPL', 'SOI']
-                      const isIncentive = pathname === '/incentive_offers'
-                      const actionKind = isIncentive
-                        ? (userRole === 'MANAGER' ? 'View' : getOfferActionKind(campaign))
-                        : getOfferActionKind(campaign)
+                      const campaignGeos = getCampaignGeos(campaign)
+                      const campaignTypes = campaign.offerTypes?.length ? campaign.offerTypes : (isIncentiveOffers ? ['CPI'] : ['CPL', 'SOI'])
+                      const isIncentive = isIncentiveOffers
+                      const actionKind = getOfferActionKind(campaign)
+                      const incentiveActive = activeIncentiveOfferIds.includes(campaign.id)
                       const actionClass = actionKind === 'Apply'
                         ? styles.offerActionApply
                         : actionKind === 'Pending'
                           ? styles.offerActionPending
                           : styles.offerActionView
-                      return <tr key={campaign.id}>
+                      return <tr key={campaign.id} className={isIncentive && incentiveActive ? styles.incentiveOfferActiveRow : undefined}>
                         {isIncentive && (
-                          <td>
-                            {actionKind === 'View'
-                              ? <i className={`fa fa-check ${styles.offerActiveCheck}`} aria-label={`Offer ${campaign.id} active`} />
-                              : <span className={styles.offerInactiveDash} aria-label={`Offer ${campaign.id} inactive`}>—</span>}
+                          <td className={styles.incentiveActiveCell}>
+                            <div className={`${styles.incentiveCheckbox} ${incentiveActive ? styles.incentiveCheckboxChecked : ''}`}>
+                              <input
+                                id={`active-${campaign.id}`}
+                                type="checkbox"
+                                className={styles.incentiveCheckboxInput}
+                                checked={incentiveActive}
+                                disabled={actionKind === 'Pending'}
+                                onChange={() => toggleIncentiveOfferActive(campaign.id)}
+                                aria-label={`Activate offer ${campaign.id} for Content Locker and OfferWall`}
+                              />
+                              <label htmlFor={`active-${campaign.id}`} className={styles.incentiveCheckboxLabel} />
+                            </div>
                           </td>
                         )}
                         <td>{campaign.id}</td>
-                        <td>{campaign.imageSource ? <Image className={styles.campaignThumb} src={campaign.imageSource} alt="" width={64} height={50} unoptimized /> : <Image className={styles.campaignThumb} src={`/affmine/campaigns/${campaign.id}.png`} alt="" width={64} height={50} />}</td>
+                        <td>
+                          <Image
+                            className={`${styles.campaignThumb} ${isIncentive ? styles.campaignThumbIncentive : ''}`}
+                            src={campaign.imageSource ?? (isIncentive ? `/affmine/preview_i/${campaign.id}.png` : `/affmine/campaigns/${campaign.id}.png`)}
+                            alt=""
+                            width={isIncentive ? 50 : 64}
+                            height={50}
+                            unoptimized={Boolean(campaign.imageSource) || isIncentive}
+                          />
+                        </td>
                         <td>
                           <div className={styles.campaignNameCell}>
                             {canNavigateOffer(campaign) ? (
-                              <Link className={styles.campaignName} href={`/campaigns/${campaign.id}`}>{campaign.name}</Link>
+                              <Link className={`${styles.campaignName} ${isIncentive ? styles.campaignNameIncentiveLink : ''}`} href={`/campaigns/${campaign.id}`}>{campaign.name}</Link>
                             ) : (
                               <span className={`${styles.campaignName} ${styles.campaignNameLocked}`} title={PENDING_OFFER_HINT}>{campaign.name}</span>
                             )}
-                            {campaign.isHot && <span className={`${styles.campaignHot} ${styles.campaignRowHot}`}>HOT</span>}
+                            {!isIncentive && campaign.isHot && <span className={`${styles.campaignHot} ${styles.campaignRowHot}`}>HOT</span>}
                             {campaign.status === 'PAUSED' && <span className={styles.campaignPausedLabel}>PAUSED</span>}
                           </div>
                         </td>
-                        <td><strong className={styles.campaignPayout}>${campaign.payout.toFixed(2)}</strong><span className={styles.campaignTags}>{campaignTypes.map((type) => <span key={type}>{type}</span>)}</span></td>
+                        <td>
+                          <strong className={`${styles.campaignPayout} ${isIncentive ? styles.campaignPayoutIncentive : ''}`}>${campaign.payout.toFixed(2)}</strong>
+                          {!isIncentive && <span className={styles.campaignTags}>{campaignTypes.map((type) => <span key={type}>{type}</span>)}</span>}
+                        </td>
                         <td>{campaign.category ?? 'E-mail Submit'}</td>
-                        <td>{CampaignCountryFlag ? <CampaignCountryFlag className={styles.campaignFlag} aria-label={campaign.country} /> : campaign.country}</td>
-                        <td><span className={styles.deviceIcons} aria-label="Desktop, Android, iOS and mobile"><Monitor size={17} /><Bot size={16} /><Apple size={14} /><Smartphone size={16} /></span></td>
+                        <td>
+                          <span className={styles.campaignGeoFlags}>
+                            {campaignGeos.map((geo) => {
+                              const Flag = CountryFlags[geo.toUpperCase() as keyof typeof CountryFlags]
+                              if (isIncentive) {
+                                return (
+                                  <img
+                                    key={geo}
+                                    className={styles.campaignFlagImg}
+                                    src={`/affmine/flags/${geo.toLowerCase()}.png`}
+                                    alt={campaignCountryLabels[geo] ?? geo}
+                                    title={campaignCountryLabels[geo] ?? geo}
+                                    height={18}
+                                  />
+                                )
+                              }
+                              return Flag
+                                ? <Flag key={geo} className={styles.campaignFlag} aria-label={geo} title={campaignCountryLabels[geo] ?? geo} />
+                                : <span key={geo}>{geo}</span>
+                            })}
+                          </span>
+                        </td>
+                        <td><CampaignDeviceIcons devices={getCampaignDevices(campaign)} /></td>
                         <td>
                           <div className={styles.offerRowActions}>
-                            {actionKind === 'Apply' ? (
+                            {actionKind === 'Apply' && !isIncentive ? (
                               <button
                                 type="button"
                                 className={`${styles.offerAction} ${actionClass}`}
@@ -2704,7 +3392,7 @@ export default function DashboardOverview() {
                               >
                                 <i className="fa fa-check" aria-hidden="true" />Apply
                               </button>
-                            ) : actionKind === 'Pending' ? (
+                            ) : actionKind === 'Pending' && !isIncentive ? (
                               <button
                                 type="button"
                                 className={`${styles.offerAction} ${actionClass}`}
@@ -2715,40 +3403,38 @@ export default function DashboardOverview() {
                                 <i className="fa fa-check" aria-hidden="true" />Pending
                               </button>
                             ) : (
-                              <a className={`${styles.offerAction} ${actionClass}`} href={`/campaigns/${campaign.id}`} target="_blank" rel="noreferrer">
+                              <a className={`${styles.offerAction} ${styles.offerActionView}`} href={`/campaigns/${campaign.id}`} target="_blank" rel="noreferrer">
                                 <i className="fa fa-check" aria-hidden="true" />View
                               </a>
                             )}
-                            {canManageOffers && (
-                              <>
-                                <div className={styles.offerActionMenu} data-offer-action-menu>
-                                  <button type="button" className={styles.offerManagementAction} aria-label={`More actions for offer ${campaign.id}`} title="Offer actions" aria-haspopup="menu" aria-expanded={openOfferActionsId === campaign.id} onClick={(event) => {
-                                    if (openOfferActionsId === campaign.id) {
-                                      setOpenOfferActionsId(null)
-                                      setOfferActionMenuPosition(null)
-                                      return
-                                    }
-                                    const buttonRect = event.currentTarget.getBoundingClientRect()
-                                    setOfferActionMenuPosition({ top: buttonRect.bottom + 4, left: Math.max(8, Math.min(buttonRect.right - 210, window.innerWidth - 218)) })
-                                    setOpenOfferActionsId(campaign.id)
-                                  }}><MoreHorizontal size={15} aria-hidden="true" /></button>
-                                  {openOfferActionsId === campaign.id && (
-                                    <div className={styles.offerActionMenuItems} style={offerActionMenuPosition ?? undefined} role="menu">
-                                      <button type="button" role="menuitem" onClick={() => { router.push(`/campaigns/add?edit=${encodeURIComponent(campaign.id)}${pathname === '/incentive_offers' ? '&placement=incentive' : ''}`); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Pencil size={14} aria-hidden="true" />Edit offer</button>
-                                      <button type="button" role="menuitem" onClick={() => { updateCampaignOfferStatus(campaign, { isHot: !campaign.isHot }); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Flame size={14} aria-hidden="true" />{campaign.isHot ? 'Remove HOT' : 'Mark as HOT'}</button>
-                                      {campaign.status === 'PAUSED'
-                                        ? <button type="button" role="menuitem" onClick={() => { updateCampaignOfferStatus(campaign, { status: 'ACTIVE' }); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Play size={14} aria-hidden="true" />Mark as Active</button>
-                                        : <button type="button" role="menuitem" onClick={() => { updateCampaignOfferStatus(campaign, { status: 'PAUSED' }); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Pause size={14} aria-hidden="true" />Pause offer</button>}
-                                      <button type="button" role="menuitem" className={styles.offerActionMenuDelete} onClick={() => { setOpenOfferActionsId(null); setOfferActionMenuPosition(null); deleteCampaignOffer(campaign) }}><Trash2 size={14} aria-hidden="true" />Delete offer</button>
-                                    </div>
-                                  )}
-                                </div>
-                              </>
+                            {canManageOffers && !isIncentive && (
+                              <div className={styles.offerActionMenu} data-offer-action-menu>
+                                <button type="button" className={styles.offerManagementAction} aria-label={`More actions for offer ${campaign.id}`} title="Offer actions" aria-haspopup="menu" aria-expanded={openOfferActionsId === campaign.id} onClick={(event) => {
+                                  if (openOfferActionsId === campaign.id) {
+                                    setOpenOfferActionsId(null)
+                                    setOfferActionMenuPosition(null)
+                                    return
+                                  }
+                                  const buttonRect = event.currentTarget.getBoundingClientRect()
+                                  setOfferActionMenuPosition({ top: buttonRect.bottom + 4, left: Math.max(8, Math.min(buttonRect.right - 210, window.innerWidth - 218)) })
+                                  setOpenOfferActionsId(campaign.id)
+                                }}><MoreHorizontal size={15} aria-hidden="true" /></button>
+                                {openOfferActionsId === campaign.id && (
+                                  <div className={styles.offerActionMenuItems} style={offerActionMenuPosition ?? undefined} role="menu">
+                                    <button type="button" role="menuitem" onClick={() => { router.push(`/campaigns/add?edit=${encodeURIComponent(campaign.id)}`); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Pencil size={14} aria-hidden="true" />Edit offer</button>
+                                    <button type="button" role="menuitem" onClick={() => { updateCampaignOfferStatus(campaign, { isHot: !campaign.isHot }); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Flame size={14} aria-hidden="true" />{campaign.isHot ? 'Remove HOT' : 'Mark as HOT'}</button>
+                                    {campaign.status === 'PAUSED'
+                                      ? <button type="button" role="menuitem" onClick={() => { updateCampaignOfferStatus(campaign, { status: 'ACTIVE' }); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Play size={14} aria-hidden="true" />Mark as Active</button>
+                                      : <button type="button" role="menuitem" onClick={() => { updateCampaignOfferStatus(campaign, { status: 'PAUSED' }); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Pause size={14} aria-hidden="true" />Pause offer</button>}
+                                    <button type="button" role="menuitem" className={styles.offerActionMenuDelete} onClick={() => { setOpenOfferActionsId(null); setOfferActionMenuPosition(null); deleteCampaignOffer(campaign) }}><Trash2 size={14} aria-hidden="true" />Delete offer</button>
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         </td>
                       </tr>
-                    }) : <tr><td className={styles.campaignNoResults} colSpan={pathname === '/incentive_offers' ? 9 : 8}>No matching campaigns found</td></tr>}
+                    }) : <tr><td className={styles.campaignNoResults} colSpan={isIncentiveOffers ? 9 : 8}>{isIncentiveOffers ? 'No incentive offers found' : 'No matching campaigns found'}</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -2765,7 +3451,7 @@ export default function DashboardOverview() {
         ) : campaignDetail ? (
           <section className={`${styles.panel} ${styles.dataPage} ${styles.campaignDetails}`}>
             <div className={styles.detailHeading}>
-              <Link href="/campaigns/browse">‹ Back to campaigns</Link>
+              <Link href={detailedCampaignIncentiveOnly ? '/incentive_offers' : '/campaigns/browse'}>‹ Back to campaigns</Link>
             </div>
             {detailedCampaignLocked ? (
               <div className={styles.offerPendingLock} role="status">
@@ -2790,9 +3476,9 @@ export default function DashboardOverview() {
                   <h2>
                     <span className={styles.detailTitleName}>{detailedCampaign.name}</span>
                     {detailedCampaign.isHot && <span className={styles.campaignHot}>HOT</span>}
-                    {detailedCampaign.status === 'PAUSED'
+                    {!detailedCampaignIncentiveOnly && (detailedCampaign.status === 'PAUSED'
                       ? <span className={styles.campaignPaused}><Pause size={11} aria-hidden="true" />Paused</span>
-                      : <span className={styles.campaignActive}><Check size={11} aria-hidden="true" />Active</span>}
+                      : <span className={styles.campaignActive}><Check size={11} aria-hidden="true" />Active</span>)}
                   </h2>
                 </div>
                 <div className={styles.detailContentGrid}>
@@ -2800,11 +3486,30 @@ export default function DashboardOverview() {
                     <div className={styles.panelTitle}><span className={styles.panelTitleIcon}></span>Details</div>
                     <div className={styles.infoPanelBody}>
                       <div className={styles.infoRow}><div className={styles.infoLabel}>Description</div><div className={styles.infoValue}>{detailedCampaign.description ?? 'Get $1000 Towards iPhone 18 Pro!'}</div></div>
-                      <div className={styles.infoRow}><div className={styles.infoLabel}>Category</div><div className={styles.infoValue}>E-mail Submit</div></div>
-                      <div className={styles.infoRow}><div className={styles.infoLabel}>Device</div><div className={styles.infoValue}>All devices</div></div>
-                      <div className={styles.infoRow}><div className={styles.infoLabel}>Incentive</div><div className={styles.infoValue} style={{ color: '#d24d4d' }}>No</div></div>
-                      <div className={styles.infoRow}><div className={styles.infoLabel}>Converts on</div><div className={styles.infoValue}>E-mail Submit</div></div>
-                      <div className={styles.infoRow}><div className={styles.infoLabel}>Preview</div><div className={styles.infoValue}><button type="button" className={styles.previewButton} aria-label="Enlarge offer preview" onClick={() => setCampaignPreviewOpen(true)}><Image className={styles.detailPreviewThumb} src={`/affmine/campaigns/${detailedCampaign.id}.png`} alt="Offer preview" width={160} height={100} /></button></div></div>
+                      <div className={styles.infoRow}><div className={styles.infoLabel}>Category</div><div className={styles.infoValue}>{detailedCampaign.category ?? 'E-mail Submit'}</div></div>
+                      <div className={styles.infoRow}><div className={styles.infoLabel}>Device</div><div className={styles.infoValue}>{formatCampaignDevices(getCampaignDevices(detailedCampaign))}</div></div>
+                      <div className={styles.infoRow}>
+                        <div className={styles.infoLabel}>Incentive</div>
+                        <div className={styles.infoValue} style={{ color: detailedCampaignIncentiveOnly ? '#008000' : '#d24d4d' }}>
+                          {detailedCampaignIncentiveOnly ? 'Yes' : 'No'}
+                        </div>
+                      </div>
+                      <div className={styles.infoRow}><div className={styles.infoLabel}>Converts on</div><div className={styles.infoValue}>{detailedCampaign.category ?? 'E-mail Submit'}</div></div>
+                      <div className={styles.infoRow}>
+                        <div className={styles.infoLabel}>Preview</div>
+                        <div className={styles.infoValue}>
+                          <button type="button" className={styles.previewButton} aria-label="Enlarge offer preview" onClick={() => setCampaignPreviewOpen(true)}>
+                            <Image
+                              className={styles.detailPreviewThumb}
+                              src={detailedCampaign.imageSource ?? `/affmine/campaigns/${detailedCampaign.id}.png`}
+                              alt="Offer preview"
+                              width={160}
+                              height={100}
+                              unoptimized={Boolean(detailedCampaign.imageSource)}
+                            />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className={styles.payoutColumn}>
@@ -2814,44 +3519,69 @@ export default function DashboardOverview() {
                         <table className={styles.dataTable}>
                           <tbody>
                             <tr>
-                              <td><span className={styles.geoFlag}><img src="/affmine/flags/us.png" alt="US" /></span> United States</td>
-                              <td>All devices</td>
-                              <td><strong>2.00 USD</strong></td>
+                              <td>
+                                <span className={styles.geoFlag}>
+                                  <img
+                                    src={`/affmine/flags/${detailedCampaign.country.toLowerCase()}.png`}
+                                    alt={detailedCampaign.country}
+                                    onError={(event) => { event.currentTarget.style.display = 'none' }}
+                                  />
+                                </span>
+                                {' '}
+                                {campaignCountryLabels[detailedCampaign.country] ?? detailedCampaign.country}
+                              </td>
+                              <td>{formatCampaignDevices(getCampaignDevices(detailedCampaign))}</td>
+                              <td><strong>{detailedCampaign.payout.toFixed(2)} USD</strong></td>
                             </tr>
                           </tbody>
                         </table>
                       </div>
                     </div>
+                    {!detailedCampaignIncentiveOnly && (
+                      <button type="button" className={styles.noticeLink} onClick={() => setCampaignNoticeOpen(true)}>MANDATORY NOTICE FROM ADVERTISER (MUST READ)</button>
+                    )}
+                  </div>
+                </div>
+                {detailedCampaignIncentiveOnly ? (
+                  <>
+                    <h4 className={styles.incentiveDirectLinkNotice}>
+                      Direct linking not allowed,{' '}
+                      <Link href="/contentlocker/new">create a content locker</Link>
+                      {' '}or{' '}
+                      <Link href="/offerwall/new">offerwall</Link>
+                      {' '}to use this offer.
+                    </h4>
                     <button type="button" className={styles.noticeLink} onClick={() => setCampaignNoticeOpen(true)}>MANDATORY NOTICE FROM ADVERTISER (MUST READ)</button>
-                  </div>
-                </div>
-                <div className={styles.trackingPanel}>
-                  <div className={styles.panelTitle}><span className={styles.panelTitleIcon}></span>Tracking</div>
-                  <div className={styles.trackingContent}>
-                    <div className={styles.trackingLeft}>
-                      <div className={styles.fieldLabel}>Tracking URL</div>
-                      <div className={styles.trackingBadgeSuccess}>NEW tracking link - increased performance</div>
-                      <textarea aria-label="New tracking URL" readOnly value={generatedTrackingUrl} onClick={(event) => event.currentTarget.select()} />
-                      <div className={styles.trackingBadgePrimary}>OLD tracking link</div>
-                      <input aria-label="Old tracking URL" type="text" readOnly value="https://go2affm.com/c/?p=63460&o=35682" onClick={(event) => event.currentTarget.select()} />
-                      <p>You can append subIDs to this URL for tracking purposes, for example add <code>&amp;s1=1234</code> where 1234 is your unique tracking ID. If you have <Link href="/tools/postback">postback</Link> set up, once a lead is generated, this information will be sent according to your postback setup.</p>
-                      <p>Supported subIDs: <code>&amp;s1=</code>, <code>&amp;s2=</code>, <code>&amp;s3=</code>, <code>&amp;s4=</code></p>
-                    </div>
-                    <div className={styles.trackingRight}>
-                      {['Sub ID 1', 'Sub ID 2', 'Sub ID 3', 'Sub ID 4'].map((label, index) => (
-                        <label className={styles.subIdField} key={label}>
-                          <span>{label}</span>
-                          <input type="text" value={trackingSubIds[index]} maxLength={100} onChange={(event) => setTrackingSubIds((current) => current.map((value, currentIndex) => currentIndex === index ? event.target.value : value))} />
-                        </label>
-                      ))}
-                      <div className={styles.trackingActions}>
-                        <button type="button" className={styles.pageSecondaryButton} onClick={resetCampaignTrackingLink}><RotateCcw size={13} aria-hidden="true" />Reset</button>
-                        <button type="button" className={styles.pagePrimaryButton} onClick={updateCampaignTrackingLink}><Check size={13} aria-hidden="true" />Update</button>
+                  </>
+                ) : (
+                  <div className={styles.trackingPanel}>
+                    <div className={styles.panelTitle}><span className={styles.panelTitleIcon}></span>Tracking</div>
+                    <div className={styles.trackingContent}>
+                      <div className={styles.trackingLeft}>
+                        <div className={styles.fieldLabel}>Tracking URL</div>
+                        <div className={styles.trackingBadgeSuccess}>NEW tracking link - increased performance</div>
+                        <textarea aria-label="New tracking URL" readOnly value={generatedTrackingUrl} onClick={(event) => event.currentTarget.select()} />
+                        <div className={styles.trackingBadgePrimary}>OLD tracking link</div>
+                        <input aria-label="Old tracking URL" type="text" readOnly value="https://go2affm.com/c/?p=63460&o=35682" onClick={(event) => event.currentTarget.select()} />
+                        <p>You can append subIDs to this URL for tracking purposes, for example add <code>&amp;s1=1234</code> where 1234 is your unique tracking ID. If you have <Link href="/tools/postback">postback</Link> set up, once a lead is generated, this information will be sent according to your postback setup.</p>
+                        <p>Supported subIDs: <code>&amp;s1=</code>, <code>&amp;s2=</code>, <code>&amp;s3=</code>, <code>&amp;s4=</code></p>
                       </div>
-                      {trackingMessage && <p className={styles.trackingStatus} role="status">{trackingMessage}</p>}
+                      <div className={styles.trackingRight}>
+                        {['Sub ID 1', 'Sub ID 2', 'Sub ID 3', 'Sub ID 4'].map((label, index) => (
+                          <label className={styles.subIdField} key={label}>
+                            <span>{label}</span>
+                            <input type="text" value={trackingSubIds[index]} maxLength={100} onChange={(event) => setTrackingSubIds((current) => current.map((value, currentIndex) => currentIndex === index ? event.target.value : value))} />
+                          </label>
+                        ))}
+                        <div className={styles.trackingActions}>
+                          <button type="button" className={styles.pageSecondaryButton} onClick={resetCampaignTrackingLink}><RotateCcw size={13} aria-hidden="true" />Reset</button>
+                          <button type="button" className={styles.pagePrimaryButton} onClick={updateCampaignTrackingLink}><Check size={13} aria-hidden="true" />Update</button>
+                        </div>
+                        {trackingMessage && <p className={styles.trackingStatus} role="status">{trackingMessage}</p>}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
                 {(campaignNoticeOpen || campaignPreviewOpen) && (
                   <div className={styles.campaignDialogBackdrop} onMouseDown={(event) => {
                     if (event.target === event.currentTarget) {
@@ -3692,7 +4422,8 @@ export default function DashboardOverview() {
       {applyCampaignId && (() => {
         const applyCampaign = allCampaignOffers.find((campaign) => campaign.id === applyCampaignId)
         if (!applyCampaign) return null
-        const applyTypes = applyCampaign.offerTypes?.length ? applyCampaign.offerTypes : ['CPL', 'SOI']
+        const applyIsIncentive = isIncentiveCampaign(applyCampaign)
+        const applyTypes = applyCampaign.offerTypes?.length ? applyCampaign.offerTypes : (applyIsIncentive ? ['CPI'] : ['CPL', 'SOI'])
         return (
           <div
             className={styles.campaignDialogBackdrop}
@@ -3734,12 +4465,13 @@ export default function DashboardOverview() {
                   />
                   <dl className={styles.applyDialogMeta}>
                     <div><dt>Description</dt><dd>{applyCampaign.description || `Promote ${applyCampaign.name}`}</dd></div>
-                    <div><dt>Vertical</dt><dd>{applyCampaign.category ?? 'E-mail Submit'}</dd></div>
-                    <div><dt>Platform</dt><dd>Windows, Mac, Android, iPhone, iPad, Mobile (Other)</dd></div>
-                    <div><dt>Allow Incentive</dt><dd><span className={styles.applyNo}>No</span></dd></div>
+                    <div><dt>Vertical</dt><dd>{applyCampaign.category ?? (applyIsIncentive ? 'App Install' : 'E-mail Submit')}</dd></div>
+                    <div><dt>Platform</dt><dd>{formatCampaignDevices(getCampaignDevices(applyCampaign))}</dd></div>
+                    <div><dt>Allow Incentive</dt><dd>{applyIsIncentive ? <span className={styles.applyYes}>Yes — tools only</span> : <span className={styles.applyNo}>No</span>}</dd></div>
+                    <div><dt>Direct link</dt><dd>{applyIsIncentive ? <span className={styles.applyNo}>Not available</span> : <span className={styles.applyYes}>After approval</span>}</dd></div>
                     <div><dt>Country</dt><dd>{applyCampaign.country}</dd></div>
                     <div><dt>Payout</dt><dd>${applyCampaign.payout.toFixed(2)} {applyTypes.join(' ')}</dd></div>
-                    <div><dt>Converts on</dt><dd>{applyCampaign.category ?? 'E-mail Submit'}</dd></div>
+                    <div><dt>Converts on</dt><dd>{applyCampaign.category ?? (applyIsIncentive ? 'App Install' : 'E-mail Submit')}</dd></div>
                   </dl>
                 </div>
                 <label className={`${styles.applyTerms} ${applyTermsError ? styles.applyTermsError : ''}`}>
@@ -3788,7 +4520,11 @@ export default function DashboardOverview() {
                       setApplyCampaignId(null)
                       setApplyTermsAccepted(false)
                       setApplyTermsError(false)
-                      setPageNotice(`Application submitted for #${applyCampaign.id}. ${PENDING_OFFER_HINT}.`)
+                      setPageNotice(
+                        applyIsIncentive
+                          ? `Application submitted for #${applyCampaign.id}. After approval, activate it for Content Locker / OfferWall — no direct offer link.`
+                          : `Application submitted for #${applyCampaign.id}. ${PENDING_OFFER_HINT}.`,
+                      )
                     } catch (submitError) {
                       setPageNotice(submitError instanceof Error ? submitError.message : 'Unable to submit application')
                     } finally {

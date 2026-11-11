@@ -526,6 +526,13 @@
   background: transparent;
 }
 
+.pageHeaderEmpty {
+  min-height: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .pageHeader h1 {
   margin: 0;
   color: #37363e;
@@ -1052,6 +1059,544 @@
   padding: 0;
 }
 
+.addOfferLoading {
+  margin: 0;
+  color: #8a949b;
+  font-size: 13px;
+}
+
+.addIncentiveNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  border-bottom: 1px solid #e4ece7;
+  padding: 12px 15px;
+  background: linear-gradient(90deg, #f4faf6 0%, #fbfcfd 100%);
+  color: #58666e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.addIncentiveNotice p {
+  margin: 0;
+}
+
+.addIncentiveNoticeBadge {
+  flex: 0 0 auto;
+  border-radius: 2px;
+  padding: 2px 7px;
+  background: #5cb85c;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.addIncentiveNotice a {
+  color: #438fc3;
+  text-decoration: none;
+}
+
+.addIncentiveNotice a:hover {
+  text-decoration: underline;
+}
+
+.addIncentiveOfferForm {
+  padding: 0 0 18px;
+}
+
+.addOfferSection {
+  padding: 18px 15px 10px;
+  border-bottom: 1px solid #f0f2f3;
+}
+
+.addOfferSection:last-of-type {
+  border-bottom: 0;
+}
+
+.addOfferSectionHead {
+  margin: 0 0 14px;
+}
+
+.addOfferSectionHead h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 3px;
+  color: #37363e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.addOfferSectionIndex {
+  display: inline-flex;
+  min-width: 22px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  background: #eef3f5;
+  color: #6b757c;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.addOfferSectionHead p {
+  margin: 0;
+  color: #8a949b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.addOfferIdRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.addOfferIdRow input {
+  flex: 1 1 auto;
+}
+
+.addOfferGhostButton {
+  flex: 0 0 auto;
+  height: 34px;
+  border: 1px solid #d5dadd;
+  border-radius: 3px;
+  padding: 0 10px;
+  background: #f7f8f9;
+  color: #58666e;
+  font: 600 11px/1 'Roboto', Arial, sans-serif;
+  cursor: pointer;
+}
+
+.addOfferGhostButton:hover {
+  border-color: #c5ccd0;
+  background: #eef1f3;
+}
+
+.addOfferGhostButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.addOfferGeoField {
+  gap: 8px;
+}
+
+.addOfferGeoPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.addOfferGeoToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.addOfferGeoSearch {
+  display: flex;
+  flex: 1 1 240px;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  border: 1px solid #d5dadd;
+  border-radius: 3px;
+  padding: 0 8px 0 10px;
+  background: #fff;
+  color: #8a949b;
+}
+
+.addOfferGeoSearch:focus-within {
+  border-color: #43b6d6;
+  box-shadow: 0 0 0 2px rgba(67, 182, 214, 0.12);
+}
+
+.addOfferGeoSearch input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  padding: 0;
+  background: transparent;
+  color: #37363e;
+  font: 400 12px/1.2 'Roboto', Arial, sans-serif;
+}
+
+.addOfferGeoSearchClear {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 2px;
+  padding: 0;
+  background: transparent;
+  color: #8a949b;
+  cursor: pointer;
+}
+
+.addOfferGeoSearchClear:hover {
+  background: #eef1f3;
+  color: #58666e;
+}
+
+.addOfferGeoToolbarActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.addOfferTextButton {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #438fc3;
+  font: 600 11px/1 'Roboto', Arial, sans-serif;
+  cursor: pointer;
+}
+
+.addOfferTextButton:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.addOfferTextButton:disabled {
+  color: #a7b0b6;
+  cursor: default;
+}
+
+.addOfferGeoToolbarSep {
+  color: #c5ccd0;
+  font-size: 11px;
+}
+
+.addOfferGeoSelected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.addOfferGeoTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  border: 1px solid #43b6d6;
+  border-radius: 3px;
+  padding: 0 6px 0 5px;
+  background: #eaf7fb;
+  color: #1f6f8a;
+  font: 600 11px/1 'Roboto', Arial, sans-serif;
+  cursor: pointer;
+}
+
+.addOfferGeoTag:hover {
+  background: #d9f0f7;
+}
+
+.addOfferGeoCount {
+  color: #8a949b;
+  font: 500 11px/1 'Roboto', Arial, sans-serif;
+}
+
+.addOfferGeoEmptyHint {
+  color: #a7b0b6;
+  font: 500 11px/1 'Roboto', Arial, sans-serif;
+}
+
+.addOfferGeoList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 6px;
+  max-height: 168px;
+  overflow: auto;
+  border: 1px solid #e6eaec;
+  border-radius: 3px;
+  padding: 8px;
+  background: #fbfcfd;
+  scrollbar-width: thin;
+  scrollbar-color: #c5ccd0 transparent;
+}
+
+.addOfferGeoList::-webkit-scrollbar {
+  width: 8px;
+}
+
+.addOfferGeoList::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background: #c5ccd0;
+}
+
+.addOfferGeoChip {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  border: 1px solid #d5dadd;
+  border-radius: 3px;
+  padding: 0 8px;
+  background: #fff;
+  color: #58666e;
+  font: 500 11px/1 'Roboto', Arial, sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.addOfferGeoChip:hover {
+  border-color: #b8c1c6;
+  background: #f8fafb;
+}
+
+.addOfferGeoChipSelected {
+  border-color: #43b6d6;
+  background: #eaf7fb;
+  color: #2f6f86;
+}
+
+.addOfferGeoFlag {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.addOfferGeoCode {
+  flex: 0 0 auto;
+  min-width: 22px;
+  color: #37363e;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.addOfferGeoChipSelected .addOfferGeoCode {
+  color: #1f6f8a;
+}
+
+.addOfferGeoLabel {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addOfferGeoCheck {
+  flex: 0 0 auto;
+  color: #1f6f8a;
+}
+
+.addOfferGeoEmpty {
+  grid-column: 1 / -1;
+  padding: 18px 8px;
+  color: #8a949b;
+  font: 500 12px/1.4 'Roboto', Arial, sans-serif;
+  text-align: center;
+}
+
+.addOfferThumbField {
+  gap: 6px;
+}
+
+.addOfferThumbLabel {
+  color: #58666e;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.addOfferThumbRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.addOfferThumbRow input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.addOfferThumbPreview {
+  display: flex;
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d5dadd;
+  border-radius: 3px;
+  background: #f3f5f6;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.addOfferThumbPreviewReady {
+  border-color: #9fd6a8;
+  background: #fff;
+}
+
+.addOfferThumbPreviewError {
+  border-color: #e3a6a6;
+  background: #fff6f6;
+}
+
+.addOfferThumbPreview img {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  display: block;
+}
+
+.addOfferThumbPlaceholder {
+  color: #9aa3a9;
+  font: 600 9px/1 'Roboto', Arial, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.addOfferHintOk {
+  color: #3d8b4f;
+}
+
+.addOfferHintError {
+  color: #c0392b;
+}
+
+.addOfferDeviceLegend {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.addOfferCatalogLive {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #e6eaec;
+  border-radius: 3px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #fbfcfd 0%, #f7f9fa 100%);
+}
+
+.addOfferCatalogLiveHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #8a949b;
+  font: 600 10px/1 'Roboto', Arial, sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.addOfferCatalogLiveRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #eceeef;
+  border-radius: 3px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.addOfferCatalogLiveThumb {
+  display: flex;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ddd;
+  background: #f3f5f6;
+  color: #9aa3a9;
+  font: 600 8px/1 'Roboto', Arial, sans-serif;
+  overflow: hidden;
+}
+
+.addOfferCatalogLiveThumb img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  display: block;
+}
+
+.addOfferCatalogLiveMeta {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.addOfferCatalogLiveTitle {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.addOfferCatalogLiveName {
+  overflow: hidden;
+  color: #438fc3;
+  font: 700 12px/1.25 'Roboto', Arial, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addOfferCatalogLivePayout {
+  color: #5cb85c;
+  font: 700 12px/1 'Roboto', Arial, sans-serif;
+}
+
+.addOfferCatalogLiveSub {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: #8a949b;
+  font: 500 11px/1.2 'Roboto', Arial, sans-serif;
+}
+
+.addOfferCatalogLiveSub .deviceIcons {
+  margin-left: 2px;
+}
+
+.addIncentiveOfferForm .addOfferActions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 8px 0 0;
+  border-top: 1px solid #eceeef;
+  padding: 14px 15px 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, #fff 35%);
+}
+
+.addOfferImagePreviewIncentive img {
+  width: 50px;
+  height: 50px;
+  border-color: #ccc;
+}
+
 .addOfferPage .dataPageHeading {
   height: 47px;
   min-height: 47px;
@@ -1089,6 +1634,14 @@
   margin-bottom: 5px;
   color: #58666e;
   font-size: 11px;
+}
+
+.addOfferFieldHint {
+  margin: 6px 0 0;
+  color: #8a949b;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
 }
 
 .addOfferTypeOptions {
@@ -2179,8 +2732,12 @@
 }
 
 .detailHeading a {
-  color: #438fc3;
+  color: #58666e;
   text-decoration: none;
+}
+
+.detailHeading a:hover {
+  color: #399bff;
 }
 
 .detailTitleBlock {
@@ -2197,7 +2754,7 @@
 
 .detailTitleId {
   display: inline-block;
-  color: #6d7a82;
+  color: #37363e;
   font-size: 18px;
   font-weight: 400;
   letter-spacing: 0.02em;
@@ -2217,7 +2774,7 @@
 
 .detailTitleName {
   display: inline-block;
-  color: #438fc3;
+  color: #399bff;
   font-weight: 700;
 }
 
@@ -3349,10 +3906,149 @@
 .campaignTableManager th:nth-child(8),
 .campaignTableManager td:nth-child(8) { width: 16%; }
 
+/* Affmine incentive column proportions: Active | ID | View | Name* | Payout | Category | Geo | Device | Action */
+.campaignTableIncentive th,
+.campaignTableIncentive td {
+  padding: 5px 2px;
+}
+
+.campaignTableIncentive th:first-child,
+.campaignTableIncentive td:first-child {
+  padding-left: 10px;
+}
+
+.campaignTableIncentive th:nth-child(1),
+.campaignTableIncentive td:nth-child(1) {
+  width: 72px;
+  text-align: center;
+}
+
+.campaignTableIncentive th:nth-child(2),
+.campaignTableIncentive td:nth-child(2) { width: 56px; }
+
+.campaignTableIncentive th:nth-child(3),
+.campaignTableIncentive td:nth-child(3) { width: 72px; }
+
+.campaignTableIncentive th:nth-child(4),
+.campaignTableIncentive td:nth-child(4) { width: auto; }
+
+.campaignTableIncentive th:nth-child(5),
+.campaignTableIncentive td:nth-child(5) { width: 88px; }
+
+.campaignTableIncentive th:nth-child(6),
+.campaignTableIncentive td:nth-child(6) { width: 110px; }
+
+.campaignTableIncentive th:nth-child(7),
+.campaignTableIncentive td:nth-child(7) { width: 96px; }
+
+.campaignTableIncentive th:nth-child(8),
+.campaignTableIncentive td:nth-child(8) { width: 88px; }
+
+.campaignTableIncentive th:nth-child(9),
+.campaignTableIncentive td:nth-child(9) { width: 86px; }
+
 .campaignTableManagerIncentive th:nth-child(4),
-.campaignTableManagerIncentive td:nth-child(4) { width: 28%; }
+.campaignTableManagerIncentive td:nth-child(4) { width: auto; }
 .campaignTableManagerIncentive th:nth-child(9),
-.campaignTableManagerIncentive td:nth-child(9) { width: 16%; }
+.campaignTableManagerIncentive td:nth-child(9) { width: 86px; }
+
+.incentiveOffersHint {
+  margin: 0 0 12px;
+  color: #737d82;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.incentiveOffersHint a {
+  color: #438fc3;
+  text-decoration: none;
+}
+
+.incentiveOffersHint a:hover {
+  text-decoration: underline;
+}
+
+.incentiveActiveCell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Affmine .checkbox-success Active column */
+.incentiveCheckbox {
+  position: relative;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+}
+
+.incentiveCheckboxInput {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.incentiveCheckboxLabel {
+  position: absolute;
+  inset: 0;
+  border: 1px solid #c5ccd0;
+  border-radius: 2px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.incentiveCheckboxLabel::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+}
+
+.incentiveCheckboxChecked .incentiveCheckboxLabel {
+  border-color: #5ff442;
+  background: #5ff442;
+}
+
+.incentiveCheckboxChecked .incentiveCheckboxLabel::after {
+  opacity: 1;
+}
+
+.incentiveCheckboxInput:disabled + .incentiveCheckboxLabel {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.incentiveOfferActiveRow td {
+  background: #fff;
+}
+
+.incentiveDirectLinkNotice {
+  margin: 18px 0 10px;
+  color: #37363e;
+  font-size: 19.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.incentiveDirectLinkNotice a {
+  color: #438fc3;
+  text-decoration: none;
+}
+
+.incentiveDirectLinkNotice a:hover {
+  text-decoration: underline;
+}
 
 .campaignThumb {
   display: block;
@@ -3362,10 +4058,43 @@
   object-fit: cover;
 }
 
+.campaignThumbIncentive {
+  width: 50px;
+  max-width: 50px;
+  height: 50px;
+  border-color: #ccc;
+  object-fit: cover;
+}
+
+.campaignGeoFlags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.campaignFlagImg {
+  display: block;
+  height: 18px;
+  width: auto;
+  border: 0;
+}
+
 .campaignName {
   color: #438fc3;
   font-weight: 700;
   text-decoration: none;
+}
+
+.campaignNameIncentiveLink {
+  color: #399bff;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.7;
+}
+
+.campaignNameIncentiveLink:hover {
+  color: #1f7fe0;
 }
 
 .campaignNameCell {
@@ -3393,6 +4122,11 @@
   display: block;
   color: #36a142;
   font-size: 13px;
+}
+
+.campaignPayoutIncentive {
+  color: #25b10d;
+  font-weight: 700;
 }
 
 .campaignTags {
@@ -3425,8 +4159,21 @@
 .deviceIcons {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  color: #5a6469;
+  gap: 4px;
+  color: #58666e;
+}
+
+.deviceIcon {
+  width: auto;
+  min-width: 1.1em;
+  font-size: 1.33333em;
+  line-height: 0.75em;
+  vertical-align: -15%;
+  text-align: center;
+}
+
+.deviceIconMobile {
+  font-size: 1.33333em;
 }
 
 .offerAction {
@@ -3570,6 +4317,34 @@
   font-weight: 700;
   text-decoration: none;
   pointer-events: none;
+}
+
+.campaignNameIncentive {
+  color: #438fc3;
+  cursor: default;
+  font-weight: 700;
+  text-decoration: none;
+  pointer-events: none;
+}
+
+.offerActionTools {
+  background: #668094;
+  color: #fff;
+}
+
+.offerActionTools:hover,
+.offerActionTools:focus-visible {
+  background: #5a7386;
+  color: #fff;
+}
+
+.offerPendingLockActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .offerPendingLock {
@@ -3901,6 +4676,10 @@ a.offerAction {
   color: #aab2b7;
 }
 
+.incentiveCampaigns .browseCampaignsHeading {
+  margin-bottom: 8px;
+}
+
 .applyDialog {
   width: min(900px, calc(100vw - 32px));
 }
@@ -3944,6 +4723,11 @@ a.offerAction {
 
 .applyNo {
   color: #d9534f;
+  font-weight: 600;
+}
+
+.applyYes {
+  color: #5cb85c;
   font-weight: 600;
 }
 
