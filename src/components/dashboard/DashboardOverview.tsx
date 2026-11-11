@@ -54,6 +54,22 @@ import {
   hasIntercomApp,
   shutdownIntercomMessenger,
 } from '@/lib/intercom'
+import {
+  type IncentiveToolRecord,
+  contentLockersStorageKey,
+  createToolId,
+  defaultLockerFields,
+  defaultLockerToggles,
+  defaultOfferwallFields,
+  defaultOfferwallToggles,
+  incentiveOfferDestination,
+  offerwallsStorageKey,
+  parseToolList,
+  toolDisplayName,
+  toolEmbedCode,
+  toolPublicPath,
+  writeJson,
+} from '@/lib/incentive-tools'
 import styles from './Dashboard.module.css'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
@@ -932,6 +948,12 @@ export default function DashboardOverview() {
   const [wizardStep, setWizardStep] = useState(0)
   const [wizardFields, setWizardFields] = useState<Record<string, string>>({})
   const [wizardToggles, setWizardToggles] = useState({ showLock: true, roundCurrency: true, hideCurrency: false })
+  const [contentLockers, setContentLockers] = useState<IncentiveToolRecord[]>([])
+  const [offerwalls, setOfferwalls] = useState<IncentiveToolRecord[]>([])
+  const [editingToolId, setEditingToolId] = useState<string | null>(null)
+  const [wizardSelectedOfferIds, setWizardSelectedOfferIds] = useState<string[]>([])
+  const [copiedToolId, setCopiedToolId] = useState<string | null>(null)
+  const [appOrigin, setAppOrigin] = useState('')
   const [time, setTime] = useState('--:--:--')
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [error, setError] = useState('')
@@ -1029,15 +1051,23 @@ export default function DashboardOverview() {
         setActiveIncentiveOfferIds(defaultActiveIncentiveIds)
         window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(defaultActiveIncentiveIds))
       }
+
+      const savedLockers = window.localStorage.getItem(contentLockersStorageKey)
+      const savedWalls = window.localStorage.getItem(offerwallsStorageKey)
+      setContentLockers(parseToolList(savedLockers ? JSON.parse(savedLockers) as unknown : [], 'locker'))
+      setOfferwalls(parseToolList(savedWalls ? JSON.parse(savedWalls) as unknown : [], 'offerwall'))
     } catch {
       setCustomCampaignOffers([])
       setManagedCampaignOverrides([])
       setDeletedCampaignIds([])
       setActiveIncentiveOfferIds(seedIncentiveOffers.map((offer) => offer.id))
+      setContentLockers([])
+      setOfferwalls([])
     }
   }, [])
 
   useEffect(() => {
+    setAppOrigin(window.location.origin)
     const updateTime = () => setTime(new Intl.DateTimeFormat('en-GB', {
       timeZone: 'America/New_York',
       hour: '2-digit',
@@ -1339,8 +1369,50 @@ export default function DashboardOverview() {
 
   useEffect(() => {
     setWizardStep(0)
+    setPageNotice('')
+    setCopiedToolId(null)
+
+    const lockerEdit = pathname.match(/^\/contentlocker\/edit\/([^/]+)$/)
+    const wallEdit = pathname.match(/^\/offerwall\/edit\/([^/]+)$/)
+    const isLockerNew = pathname === '/contentlocker/new'
+    const isWallNew = pathname === '/offerwall/new'
+
+    if (lockerEdit) {
+      const tool = contentLockers.find((item) => item.id === lockerEdit[1])
+      setEditingToolId(tool?.id ?? null)
+      setWizardFields(tool ? { ...defaultLockerFields, ...tool.fields } : { ...defaultLockerFields })
+      setWizardToggles(tool?.toggles ?? { ...defaultLockerToggles })
+      setWizardSelectedOfferIds(tool?.selectedOfferIds ?? [])
+      return
+    }
+    if (wallEdit) {
+      const tool = offerwalls.find((item) => item.id === wallEdit[1])
+      setEditingToolId(tool?.id ?? null)
+      setWizardFields(tool ? { ...defaultOfferwallFields, ...tool.fields } : { ...defaultOfferwallFields })
+      setWizardToggles(tool?.toggles ?? { ...defaultOfferwallToggles })
+      setWizardSelectedOfferIds(tool?.selectedOfferIds ?? [])
+      return
+    }
+    if (isLockerNew) {
+      setEditingToolId(null)
+      setWizardFields({ ...defaultLockerFields })
+      setWizardToggles({ ...defaultLockerToggles })
+      setWizardSelectedOfferIds([])
+      return
+    }
+    if (isWallNew) {
+      setEditingToolId(null)
+      setWizardFields({ ...defaultOfferwallFields })
+      setWizardToggles({ ...defaultOfferwallToggles })
+      setWizardSelectedOfferIds([])
+      return
+    }
+
+    setEditingToolId(null)
     setWizardFields({})
-  }, [pathname])
+    setWizardToggles({ showLock: true, roundCurrency: true, hideCurrency: false })
+    setWizardSelectedOfferIds([])
+  }, [pathname, contentLockers, offerwalls])
 
   useEffect(() => {
     if ((pathname === '/campaigns/add' || pathname === '/campaigns/approvals' || pathname === '/account/publishers') && userRole === 'PUBLISHER') {
@@ -1863,6 +1935,93 @@ export default function DashboardOverview() {
       } catch { /* ignore */ }
       return next
     })
+  }
+
+  const activeIncentiveCatalog = allCampaignOffers
+    .filter((campaign) => campaign.placement === 'INCENTIVE' && !deletedCampaignIds.includes(campaign.id))
+    .map((campaign) => {
+      const override = managedCampaignOverrides.find((item) => item.id === campaign.id)
+      return mergeCampaignOverride(campaign, override)
+    })
+    .filter((campaign) => activeIncentiveOfferIds.includes(campaign.id) && campaign.status !== 'PAUSED')
+    .map((campaign) => ({
+      ...campaign,
+      offerLink: incentiveOfferDestination({
+        id: campaign.id,
+        offerLink: campaign.offerLink || '',
+      }),
+      imageSource: campaign.imageSource || `/affmine/preview_i/${campaign.id}.png`,
+    }))
+
+  const wizardPreviewOffers = (wizardSelectedOfferIds.length
+    ? activeIncentiveCatalog.filter((offer) => wizardSelectedOfferIds.includes(offer.id))
+    : activeIncentiveCatalog
+  ).slice(0, Number(wizardFields.desktopMaxOffers || 5) || 5)
+
+  const persistTools = (kind: 'locker' | 'offerwall', next: IncentiveToolRecord[]) => {
+    if (kind === 'locker') {
+      setContentLockers(next)
+      writeJson(contentLockersStorageKey, next)
+      return
+    }
+    setOfferwalls(next)
+    writeJson(offerwallsStorageKey, next)
+  }
+
+  const saveIncentiveTool = () => {
+    const kind = isContentLockerWizard ? 'locker' as const : 'offerwall' as const
+    const name = (kind === 'locker' ? wizardFields.lockerName : wizardFields.offerwallName)?.trim()
+    if (!name) {
+      setPageNotice(`Enter a ${kind === 'locker' ? 'content locker' : 'offerwall'} name.`)
+      setWizardStep(0)
+      return
+    }
+    if (!activeIncentiveCatalog.length) {
+      setPageNotice('Activate at least one incentive offer before publishing this tool.')
+      return
+    }
+
+    const now = new Date().toISOString()
+    const existingId = editingToolId
+    const nextTool: IncentiveToolRecord = {
+      id: existingId || createToolId(),
+      kind,
+      name,
+      createdAt: existingId
+        ? ((kind === 'locker' ? contentLockers : offerwalls).find((item) => item.id === existingId)?.createdAt || now)
+        : now,
+      updatedAt: now,
+      fields: { ...(kind === 'locker' ? defaultLockerFields : defaultOfferwallFields), ...wizardFields },
+      toggles: { ...wizardToggles },
+      selectedOfferIds: [...wizardSelectedOfferIds],
+    }
+
+    const current = kind === 'locker' ? contentLockers : offerwalls
+    const next = existingId
+      ? current.map((item) => (item.id === existingId ? nextTool : item))
+      : [nextTool, ...current]
+    persistTools(kind, next)
+    setEditingToolId(nextTool.id)
+    setPageNotice(`${kind === 'locker' ? 'Content locker' : 'OfferWall'} “${name}” is live and connected to incentive offers.`)
+    setWizardStep(2)
+    router.replace(kind === 'locker' ? `/contentlocker/edit/${nextTool.id}` : `/offerwall/edit/${nextTool.id}`)
+  }
+
+  const deleteIncentiveTool = (kind: 'locker' | 'offerwall', toolId: string) => {
+    const current = kind === 'locker' ? contentLockers : offerwalls
+    persistTools(kind, current.filter((item) => item.id !== toolId))
+    setPageNotice(`${kind === 'locker' ? 'Content locker' : 'OfferWall'} deleted.`)
+  }
+
+  const copyToolEmbed = async (tool: IncentiveToolRecord) => {
+    const code = toolEmbedCode(tool, appOrigin || window.location.origin)
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopiedToolId(tool.id)
+      setPageNotice('Embed code copied.')
+    } catch {
+      setPageNotice('Could not copy embed code.')
+    }
   }
   const publisherOfferActionById = new Map(
     offerApplications.map((application) => [
@@ -3664,29 +3823,163 @@ export default function DashboardOverview() {
             </section>
           </>
         ) : pathname === '/contentlocker' || pathname === '/offerwall' ? (
-          <section className={`${styles.panel} ${styles.dataPage}`}>
-            <div className={styles.dataPageHeading}>
-              <h2>{pathname === '/contentlocker' ? 'Content Lockers' : 'OfferWalls'}</h2>
-            </div>
-            <div className={styles.listTools}>
-              <input type="search" aria-label="Search" placeholder="Search" value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} />
-            </div>
-            <div className={styles.dataTableWrap}>
-              <table className={styles.dataTable}>
-                <thead><tr>{['ID', 'Name', 'Actions'].map((column) => <th key={column}>{column}</th>)}</tr></thead>
-                <tbody>
-                  <tr>
-                    <td colSpan={3}>
-                      {pathname === '/offerwall'
-                        ? 'Nothing found! Start now by creating an offerwall.'
-                        : 'No content lockers available'}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            {pageNotice && <p className={styles.pageNotice} role="status">{pageNotice}</p>}
-          </section>
+          (() => {
+            const kind = pathname === '/contentlocker' ? 'locker' as const : 'offerwall' as const
+            const tools = (kind === 'locker' ? contentLockers : offerwalls)
+              .filter((tool) => {
+                const query = pageSearch.trim().toLowerCase()
+                if (!query) return true
+                return toolDisplayName(tool).toLowerCase().includes(query) || tool.id.toLowerCase().includes(query)
+              })
+            return (
+              <section className={`${styles.panel} ${styles.dataPage} ${styles.incentiveToolsPage}`}>
+                <div className={styles.dataPageHeading}>
+                  <h2>{kind === 'locker' ? 'Content Lockers' : 'OfferWalls'}</h2>
+                </div>
+
+                <div className={styles.incentiveToolsHero}>
+                  <div className={styles.incentiveToolsHeroCopy}>
+                    <p className={styles.incentiveToolsEyebrow}>Publisher setup</p>
+                    <h3>{kind === 'locker' ? 'Gate downloads, videos, or pages behind offers' : 'Let users earn rewards by completing offers'}</h3>
+                    <p>
+                      Built from your active <Link href="/incentive_offers">Incentive Offers</Link>.
+                      Share a link or paste the embed on your site — visitors complete offers, you get paid.
+                    </p>
+                  </div>
+                  <div className={styles.incentiveToolsHeroStats}>
+                    <div><b>{tools.length}</b><span>Your tools</span></div>
+                    <div><b>{activeIncentiveCatalog.length}</b><span>Live offers</span></div>
+                  </div>
+                </div>
+
+                <ol className={styles.incentiveToolsSteps}>
+                  <li>
+                    <span>1</span>
+                    <div>
+                      <strong>Pick offers</strong>
+                      <p>Use active Incentive Offers (or choose specific ones).</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>2</span>
+                    <div>
+                      <strong>{kind === 'locker' ? 'Create a locker' : 'Create a wall'}</strong>
+                      <p>{kind === 'locker' ? 'Set how many offers unlock your content.' : 'Set points, currency, and look & feel.'}</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>3</span>
+                    <div>
+                      <strong>Share or embed</strong>
+                      <p>Copy the public link or iframe code into your site/app.</p>
+                    </div>
+                  </li>
+                </ol>
+
+                <div className={styles.incentiveToolsToolbar}>
+                  <input
+                    type="search"
+                    aria-label={kind === 'locker' ? 'Search content lockers' : 'Search offerwalls'}
+                    placeholder={kind === 'locker' ? 'Search lockers…' : 'Search offerwalls…'}
+                    value={pageSearch}
+                    onChange={(event) => setPageSearch(event.target.value)}
+                  />
+                </div>
+
+                {tools.length ? (
+                  <div className={styles.incentiveToolGrid}>
+                    {tools.map((tool) => {
+                      const publicPath = toolPublicPath(tool)
+                      const offerCount = tool.selectedOfferIds.length || activeIncentiveCatalog.length
+                      const absoluteUrl = `${appOrigin}${publicPath}`
+                      return (
+                        <article key={tool.id} className={styles.incentiveToolCard}>
+                          <header className={styles.incentiveToolCardHead}>
+                            <div>
+                              <p className={styles.incentiveToolBadge}>{kind === 'locker' ? 'Content Locker' : 'OfferWall'}</p>
+                              <h3>{toolDisplayName(tool)}</h3>
+                              <p className={styles.incentiveToolMeta}>
+                                {offerCount} offer{offerCount === 1 ? '' : 's'} · Updated {new Date(tool.updatedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <span className={styles.incentiveToolLive}>Live</span>
+                          </header>
+
+                          <div className={styles.incentiveToolUrlBox}>
+                            <label htmlFor={`tool-url-${tool.id}`}>Share link</label>
+                            <div>
+                              <input id={`tool-url-${tool.id}`} readOnly value={absoluteUrl || publicPath} />
+                              <button
+                                type="button"
+                                className={styles.incentiveToolCopyBtn}
+                                onClick={async () => {
+                                  try {
+                                    await navigator.clipboard.writeText(absoluteUrl || publicPath)
+                                    setCopiedToolId(`url-${tool.id}`)
+                                    setPageNotice('Share link copied.')
+                                  } catch {
+                                    setPageNotice('Could not copy link.')
+                                  }
+                                }}
+                              >
+                                {copiedToolId === `url-${tool.id}` ? 'Copied' : 'Copy'}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className={styles.incentiveToolCardActions}>
+                            <Link href={publicPath} target="_blank" rel="noreferrer" className={styles.pagePrimaryButton}>
+                              Open preview
+                            </Link>
+                            <button type="button" className={styles.pageSecondaryButton} onClick={() => void copyToolEmbed(tool)}>
+                              {copiedToolId === tool.id ? 'Embed copied' : 'Copy embed'}
+                            </button>
+                            <Link
+                              href={kind === 'locker' ? `/contentlocker/edit/${tool.id}` : `/offerwall/edit/${tool.id}`}
+                              className={styles.pageSecondaryButton}
+                            >
+                              Edit
+                            </Link>
+                            <button
+                              type="button"
+                              className={styles.incentiveToolDelete}
+                              onClick={() => {
+                                if (window.confirm(`Delete “${toolDisplayName(tool)}”? This cannot be undone.`)) {
+                                  deleteIncentiveTool(kind, tool.id)
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </article>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className={styles.incentiveToolsEmpty}>
+                    <div className={styles.incentiveToolsEmptyIcon} aria-hidden="true">{kind === 'locker' ? '🔒' : '🎁'}</div>
+                    <h3>{kind === 'locker' ? 'No content lockers yet' : 'No offerwalls yet'}</h3>
+                    <p>
+                      {kind === 'locker'
+                        ? 'Create one in a minute, then paste the embed where you want visitors to unlock content.'
+                        : 'Create a rewards wall, then drop the embed into your site or app.'}
+                    </p>
+                    <div className={styles.incentiveToolsEmptyActions}>
+                      <Link className={styles.pagePrimaryButton} href={kind === 'locker' ? '/contentlocker/new' : '/offerwall/new'}>
+                        <i className="fa fa-plus" aria-hidden="true" />
+                        {kind === 'locker' ? 'Create Content Locker' : 'Create OfferWall'}
+                      </Link>
+                      <Link className={styles.pageSecondaryButton} href="/incentive_offers">
+                        Review Incentive Offers
+                      </Link>
+                    </div>
+                  </div>
+                )}
+                {pageNotice && <p className={styles.pageNotice} role="status">{pageNotice}</p>}
+              </section>
+            )
+          })()
         ) : tablePage ? (
           <section className={`${styles.panel} ${styles.dataPage}`}>
             <div className={styles.dataPageHeading}><h2>{tablePage.title}</h2></div>
@@ -3703,12 +3996,24 @@ export default function DashboardOverview() {
               <Link href={isContentLockerWizard ? '/contentlocker' : '/offerwall'}>‹ Back to {isContentLockerWizard ? 'Content Lockers' : 'Offer Walls'}</Link>
             </div>
             <div className={styles.wizardTabs} role="tablist" aria-label="Setup steps">
-              {(isContentLockerWizard ? ['Settings', 'Customization', 'Finish'] : ['General Settings', 'Customization', 'Finish']).map((tab, index) => (
+              {(isContentLockerWizard
+                ? ['1. Basics', '2. Look & feel', '3. Publish']
+                : ['1. Basics', '2. Look & feel', '3. Publish']
+              ).map((tab, index) => (
                 <button type="button" role="tab" aria-selected={wizardStep === index} className={wizardStep === index ? styles.wizardTabActive : ''} key={tab} onClick={() => setWizardStep(index)}>
-                  <span>{index === 0 ? 'ⓘ' : index === 1 ? '⚙' : '◆'}</span>{tab}
+                  {tab}
                 </button>
               ))}
             </div>
+            <p className={styles.wizardPublisherTip}>
+              {wizardStep === 0
+                ? (isContentLockerWizard
+                  ? 'Tip: Start with 1 conversion required so users unlock quickly.'
+                  : 'Tip: 100 points per $1 is a clear, publisher-friendly default.')
+                : wizardStep === 1
+                  ? 'Tip: Keep titles short — users see this on mobile too.'
+                  : 'Tip: Copy the share link for chats/SMS, or embed code for your website.'}
+            </p>
             <div className={styles.wizardLayout}>
               <section className={styles.wizardStepContent}>
                 {wizardStep === 0 ? (
@@ -3773,9 +4078,109 @@ export default function DashboardOverview() {
                 ) : (
                   <>
                     <h2>FINISH</h2>
-                    <p className={styles.pageHint}>Review the preview, then create the {isContentLockerWizard ? 'content locker' : 'offerwall'} to receive its integration code.</p>
-                    <label className={styles.wizardField}>Integration code<textarea readOnly value={`<!-- ${isContentLockerWizard ? 'Content locker' : 'Offerwall'} integration code will appear here after setup -->`} rows={4} /></label>
-                    <button type="button" className={styles.pagePrimaryButton} onClick={() => setPageNotice('Creation is unavailable until this account is connected.')}>Create {isContentLockerWizard ? 'Content Locker' : 'OfferWall'}</button>
+                    <p className={styles.pageHint}>
+                      Publish to get a live public URL and embed code powered by your active Incentive Offers.
+                      Offer clicks open each campaign’s conversion URL.
+                    </p>
+                    <div className={styles.wizardOfferPicker}>
+                      <div className={styles.wizardOfferPickerHead}>
+                        <strong>Connected incentive offers</strong>
+                        <button
+                          type="button"
+                          className={styles.addOfferTextButton}
+                          onClick={() => setWizardSelectedOfferIds([])}
+                          disabled={wizardSelectedOfferIds.length === 0}
+                        >
+                          Use all active
+                        </button>
+                      </div>
+                      <div className={styles.wizardOfferPickerList}>
+                        {activeIncentiveCatalog.length ? activeIncentiveCatalog.map((offer) => {
+                          const selected = wizardSelectedOfferIds.length === 0 || wizardSelectedOfferIds.includes(offer.id)
+                          return (
+                            <label key={offer.id} className={`${styles.wizardOfferPick} ${selected ? styles.wizardOfferPickSelected : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => {
+                                  setWizardSelectedOfferIds((current) => {
+                                    if (current.length === 0) {
+                                      return activeIncentiveCatalog
+                                        .map((item) => item.id)
+                                        .filter((id) => id !== offer.id)
+                                    }
+                                    if (current.includes(offer.id)) {
+                                      const next = current.filter((id) => id !== offer.id)
+                                      return next
+                                    }
+                                    return [...current, offer.id]
+                                  })
+                                }}
+                              />
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={offer.imageSource || `/affmine/preview_i/${offer.id}.png`} alt="" width={28} height={28} />
+                              <span>
+                                <b>#{offer.id}</b> {offer.name}
+                                <small>${offer.payout.toFixed(2)} · {offer.offerLink}</small>
+                              </span>
+                            </label>
+                          )
+                        }) : (
+                          <p className={styles.pageHint}>No active incentive offers. Activate some on <Link href="/incentive_offers">Incentive Offers</Link>.</p>
+                        )}
+                      </div>
+                    </div>
+                    {editingToolId ? (
+                      <>
+                        <label className={styles.wizardField}>
+                          Public URL
+                          <input
+                            readOnly
+                            value={`${appOrigin}${toolPublicPath({ id: editingToolId, kind: isContentLockerWizard ? 'locker' : 'offerwall' })}`}
+                          />
+                        </label>
+                        <label className={styles.wizardField}>
+                          Integration code
+                          <textarea
+                            readOnly
+                            rows={4}
+                            value={toolEmbedCode(
+                              {
+                                id: editingToolId,
+                                kind: isContentLockerWizard ? 'locker' : 'offerwall',
+                                name: '',
+                                createdAt: '',
+                                updatedAt: '',
+                                fields: wizardFields,
+                                toggles: wizardToggles,
+                                selectedOfferIds: wizardSelectedOfferIds,
+                              },
+                              appOrigin,
+                            )}
+                          />
+                        </label>
+                      </>
+                    ) : (
+                      <label className={styles.wizardField}>
+                        Integration code
+                        <textarea readOnly value="Publish this tool to generate a live iframe embed connected to incentive offer URLs." rows={3} />
+                      </label>
+                    )}
+                    <div className={styles.wizardFinishActions}>
+                      <button type="button" className={styles.pagePrimaryButton} onClick={saveIncentiveTool}>
+                        {editingToolId ? 'Save changes' : `Create ${isContentLockerWizard ? 'Content Locker' : 'OfferWall'}`}
+                      </button>
+                      {editingToolId ? (
+                        <Link
+                          className={styles.pageSecondaryButton}
+                          href={toolPublicPath({ id: editingToolId, kind: isContentLockerWizard ? 'locker' : 'offerwall' })}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open live preview
+                        </Link>
+                      ) : null}
+                    </div>
                     {pageNotice && <p className={styles.pageNotice} role="status">{pageNotice}</p>}
                   </>
                 )}
@@ -3787,21 +4192,97 @@ export default function DashboardOverview() {
                 )}
               </section>
               <aside className={styles.wizardPreview}>
-                <div className={styles.wizardPreviewHeader}><strong>ⓘ&nbsp; Preview as</strong><select aria-label="Preview as" value={wizardFields.previewDevice ?? 'Desktop'} onChange={(event) => setWizardFields((fields) => ({ ...fields, previewDevice: event.target.value }))}><option>Desktop</option><option>Mobile</option></select></div>
+                <div className={styles.wizardPreviewHeader}>
+                  <strong>ⓘ&nbsp; Live preview</strong>
+                  <select aria-label="Preview as" value={wizardFields.previewDevice ?? 'Desktop'} onChange={(event) => setWizardFields((fields) => ({ ...fields, previewDevice: event.target.value }))}>
+                    <option>Desktop</option>
+                    <option>Mobile</option>
+                  </select>
+                </div>
                 {isContentLockerWizard ? (
-                  <div className={styles.lockerPreview}>
-                    <strong>{wizardFields.lockerTitle || 'Complete an offer below to unlock your content.'}</strong>
+                  <div
+                    className={`${styles.lockerPreview} ${wizardFields.previewDevice === 'Mobile' ? styles.wizardPreviewMobile : ''}`}
+                    style={{
+                      background: wizardFields.lockerBackground || '#fff',
+                      ['--locker-btn' as string]: wizardFields.offersButtonColor || '#5cb85c',
+                      ['--locker-offers-bg' as string]: wizardFields.offersBackground || '#f7f8f9',
+                      ['--locker-offers-text' as string]: wizardFields.offersTextColor || '#58666e',
+                    }}
+                  >
+                    <div className={styles.lockerPreviewHead}>
+                      {wizardToggles.showLock ? <span aria-hidden="true">🔒</span> : null}
+                      <strong>{wizardFields.lockerTitle || 'Complete an offer below to unlock your content.'}</strong>
+                    </div>
                     <p>{wizardFields.lockerDescription || 'Unlocking will allow access to the premium content.'}</p>
-                    <div><span>Sample offer</span><button type="button" disabled>FREE</button></div>
-                    <div><span>Sample offer</span><button type="button" disabled>FREE</button></div>
-                    <div><span>Sample offer</span><button type="button" disabled>FREE</button></div>
+                    <div className={styles.lockerPreviewProgress}>
+                      0 / {wizardFields.conversionsRequired || '1'} required · min ${wizardFields.minimumPayout || '0.25'}
+                    </div>
+                    {wizardPreviewOffers.length ? wizardPreviewOffers.map((offer) => (
+                      <div key={offer.id} className={styles.lockerPreviewOffer}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={offer.imageSource || `/affmine/preview_i/${offer.id}.png`} alt="" width={36} height={36} />
+                        <span>
+                          <b>{offer.name}</b>
+                          <small>${offer.payout.toFixed(2)} · {offer.country}</small>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(offer.offerLink, '_blank', 'noopener,noreferrer')}
+                        >
+                          FREE
+                        </button>
+                      </div>
+                    )) : (
+                      <div className={styles.lockerPreviewEmpty}>Activate incentive offers to preview real conversions here.</div>
+                    )}
+                    <button type="button" className={styles.lockerPreviewUnlock} disabled>
+                      {wizardFields.lockerButtonText || 'Unlock content'}
+                    </button>
                   </div>
                 ) : (
-                  <div className={styles.offerwallPreview}>
+                  <div
+                    className={`${styles.offerwallPreview} ${wizardFields.previewDevice === 'Mobile' ? styles.wizardPreviewMobile : ''}`}
+                    style={{
+                      background: wizardFields.offerwallBackground || '#fff',
+                      ['--wall-btn' as string]: wizardFields.offerButtonColor || '#43b6d6',
+                      ['--wall-box' as string]: wizardFields.offerBoxBackground || '#f7f8f9',
+                      ['--wall-text' as string]: wizardFields.offerBoxText || '#58666e',
+                    }}
+                  >
                     <h3>{wizardFields.offerwallTitle || 'Complete offers and earn rewards'}</h3>
-                    <p>{wizardFields.currencyName || 'Points'} balance: 0</p>
-                    <div><strong>Sample offer</strong><span>Earn rewards</span><button type="button" disabled>View</button></div>
-                    <div><strong>Sample offer</strong><span>Earn rewards</span><button type="button" disabled>View</button></div>
+                    <p>
+                      {wizardToggles.hideCurrency
+                        ? 'Balance: 0'
+                        : `${wizardFields.currencyName || 'Points'} balance: 0`}
+                      {' · '}
+                      {wizardFields.exchangeRate || '100'} / $1
+                    </p>
+                    {wizardPreviewOffers.length ? wizardPreviewOffers.map((offer) => {
+                      const rate = Number(wizardFields.exchangeRate || 100) || 100
+                      const reward = wizardToggles.roundCurrency
+                        ? Math.round(offer.payout * rate)
+                        : Number((offer.payout * rate).toFixed(2))
+                      return (
+                        <div key={offer.id} className={styles.offerwallPreviewOffer}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={offer.imageSource || `/affmine/preview_i/${offer.id}.png`} alt="" width={36} height={36} />
+                          <span>
+                            <strong>{offer.name}</strong>
+                            <small>
+                              +{reward}{wizardToggles.hideCurrency ? '' : ` ${wizardFields.currencyName || 'Points'}`}
+                            </small>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => window.open(offer.offerLink, '_blank', 'noopener,noreferrer')}
+                          >
+                            View
+                          </button>
+                        </div>
+                      )
+                    }) : (
+                      <div className={styles.lockerPreviewEmpty}>Activate incentive offers to fill this wall.</div>
+                    )}
                   </div>
                 )}
               </aside>

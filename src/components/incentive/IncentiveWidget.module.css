@@ -1,0 +1,330 @@
+.shell {
+  --iw-bg: #ffffff;
+  --iw-main: #43b6d6;
+  --iw-offers-bg: #f7f8f9;
+  --iw-offers-text: #58666e;
+  --iw-btn: #5cb85c;
+  --iw-btn-border: #43b6d6;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 18px 16px 24px;
+  background:
+    radial-gradient(1200px 420px at 10% -10%, color-mix(in srgb, var(--iw-main) 18%, transparent), transparent 55%),
+    linear-gradient(180deg, #f4f7f9 0%, #eef2f4 100%);
+  color: #3d464d;
+  font: 400 13px/1.45 'Roboto', Arial, sans-serif;
+}
+
+.lockerShell,
+.wallShell {
+  max-width: 720px;
+}
+
+.header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  border: 1px solid #e5e9ec;
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: var(--iw-bg);
+  box-shadow: 0 10px 30px rgba(30, 41, 49, 0.05);
+}
+
+.kicker {
+  margin: 0 0 4px;
+  color: var(--iw-main);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin: 0 0 6px;
+  color: #2f373d;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.header p {
+  margin: 0;
+  color: #7a858b;
+}
+
+.rate {
+  color: #9aa3a9;
+}
+
+.lockBadge {
+  display: grid;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--iw-main) 14%, #fff);
+  font-size: 18px;
+}
+
+.lockBadgeOpen {
+  background: #e8f8ea;
+}
+
+.progressCard,
+.wallBalance {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  border: 1px solid #e5e9ec;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #fff;
+}
+
+.progressMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.progressMeta strong {
+  color: #2f373d;
+  font-size: 18px;
+}
+
+.progressMeta span,
+.wallBalance span {
+  color: #8a949b;
+  font-size: 12px;
+}
+
+.wallHint {
+  margin: 0;
+  color: #667178;
+  font-size: 12px;
+}
+
+.progressTrack {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf1f3;
+}
+
+.progressTrack > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--iw-main), color-mix(in srgb, var(--iw-main) 55%, #5cb85c));
+  transition: width 0.25s ease;
+}
+
+.unlockButton,
+.offerButton {
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: 700 12px/1 'Roboto', Arial, sans-serif;
+}
+
+.unlockButton {
+  justify-self: start;
+  min-height: 34px;
+  padding: 0 14px;
+  background: var(--iw-btn);
+  color: #fff;
+}
+
+.unlockButton:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.wallBalance strong {
+  color: #2f373d;
+  font-size: 22px;
+}
+
+.unlockedPanel {
+  margin-bottom: 14px;
+  border: 1px solid #cfe9d4;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #f3fbf5;
+}
+
+.unlockedPanel h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.unlockedPanel p {
+  margin: 0;
+  color: #5f7366;
+}
+
+.offerToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 10px;
+}
+
+.offerHeading {
+  margin: 0;
+  color: #2f373d;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.offerSearch {
+  flex: 1 1 180px;
+  max-width: 260px;
+  height: 34px;
+  border: 1px solid #d5dadd;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fff;
+  color: #58666e;
+  font: 400 12px/1 'Roboto', Arial, sans-serif;
+}
+
+.offerList {
+  display: grid;
+  gap: 10px;
+}
+
+.offerCard {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #e5e9ec;
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--iw-offers-bg);
+  color: var(--iw-offers-text);
+  box-shadow: 0 6px 16px rgba(31, 41, 51, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.offerCard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(31, 41, 51, 0.07);
+}
+
+.offerCardDone {
+  opacity: 0.72;
+}
+
+.offerCard img {
+  width: 52px;
+  height: 52px;
+  border: 1px solid #dfe4e7;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #fff;
+}
+
+.offerBody {
+  min-width: 0;
+}
+
+.offerBody h2 {
+  margin: 0 0 3px;
+  overflow: hidden;
+  color: #2f6f8a;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.offerBody p {
+  margin: 0 0 4px;
+  overflow: hidden;
+  color: #8a949b;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payout {
+  color: #5cb85c;
+  font-size: 12px;
+}
+
+.offerButton {
+  min-width: 92px;
+  min-height: 34px;
+  border: 1px solid var(--iw-btn-border, var(--iw-btn));
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--iw-btn);
+  color: #fff;
+}
+
+.offerButton:hover {
+  filter: brightness(0.96);
+}
+
+.empty,
+.missing {
+  border: 1px dashed #d5dadd;
+  border-radius: 10px;
+  padding: 28px 18px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #8a949b;
+  text-align: center;
+}
+
+.missing h1 {
+  margin: 0 0 8px;
+  color: #3d464d;
+  font-size: 20px;
+}
+
+.missing p {
+  margin: 0;
+}
+
+.notice {
+  margin: 12px 0 0;
+  color: #3d8b4f;
+  font-size: 12px;
+  text-align: center;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin-top: 16px;
+  color: #9aa3a9;
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .shell {
+    padding: 12px 10px 18px;
+  }
+
+  .header h1 {
+    font-size: 17px;
+  }
+
+  .offerCard {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .offerButton {
+    grid-column: 1 / -1;
+  }
+}
