@@ -46,15 +46,25 @@ async function handle(request: Request, context: RouteContext) {
     }
 
     // Networks often expect plain "OK" / 1 on success.
+    const headers: Record<string, string> = {
+      'content-type': 'text/plain; charset=utf-8',
+      'x-conversion-id': result.leadId,
+      'x-publisher-id': String(result.publisherNumber),
+      'x-offer-id': result.offerId,
+      'x-payout': String(result.payout),
+    }
+    if (result.publisherPostback) {
+      headers['x-publisher-postback'] = result.publisherPostback.fired ? 'fired' : 'skipped'
+      if (result.publisherPostback.status != null) {
+        headers['x-publisher-postback-status'] = String(result.publisherPostback.status)
+      }
+      if (result.publisherPostback.skipped) {
+        headers['x-publisher-postback-skipped'] = result.publisherPostback.skipped
+      }
+    }
     return new NextResponse(result.duplicate ? 'OK duplicate' : 'OK', {
       status: 200,
-      headers: {
-        'content-type': 'text/plain; charset=utf-8',
-        'x-conversion-id': result.leadId,
-        'x-publisher-id': String(result.publisherNumber),
-        'x-offer-id': result.offerId,
-        'x-payout': String(result.payout),
-      },
+      headers,
     })
   } catch (error) {
     console.error('Marketplace postback ingest failed:', error)

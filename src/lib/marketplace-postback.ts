@@ -112,7 +112,20 @@ function buildExternalKey(parts: {
 }
 
 export type IngestPostbackResult =
-  | { ok: true; leadId: string; duplicate?: boolean; publisherNumber: number; offerId: string; payout: number }
+  | {
+      ok: true
+      leadId: string
+      duplicate?: boolean
+      publisherNumber: number
+      offerId: string
+      payout: number
+      publisherPostback?: {
+        fired: boolean
+        status?: number
+        skipped?: string
+        url?: string
+      }
+    }
   | { ok: false; status: number; error: string }
 
 /**
@@ -136,9 +149,10 @@ export async function ingestMarketplacePostback(
 
   const s1 = firstParam(params, ['s1', 'sub1', 'sub_id_1'])
   const s2 = firstParam(params, ['s2', 'sub2', 'sub_id_2', 'offer_id', 'offerid'])
-  const s3 = firstParam(params, ['s3', 'sub3', 'sub_id_3'])
-  const s4 = firstParam(params, ['s4', 'sub4', 'sub_id_4'])
-  const payoutRaw = firstParam(params, ['payout', 'amount', 'revenue'])
+  let s3 = firstParam(params, ['s3', 'sub3', 'sub_id_3'])
+  let s4 = firstParam(params, ['s4', 'sub4', 'sub_id_4'])
+  const payoutRaw = firstParam(params, ['payout', 'revenue'])
+  const amountRaw = firstParam(params, ['amount'])
   const cmpid = firstParam(params, ['cmpid', 'campaign_id', 'campaignid'])
   const cmpname = firstParam(params, ['cmpname', 'campaign_name', 'campaignname'])
   const datetime = firstParam(params, ['datetime', 'time', 'timestamp'])
@@ -173,7 +187,27 @@ export async function ingestMarketplacePostback(
     return { ok: false, status: 404, error: `Offer #${s2} not found` }
   }
 
-  const payout = parsePayout(payoutRaw) ?? offer.payout
+  // If marketplace omitted publisher subs, backfill from latest tracking click.
+  if (!s3 || !s4) {
+    const click = await prisma.offerClick.findFirst({
+      where: {
+        offerId: offer.id,
+        OR: [
+          { publisherUserId: publisher.id },
+          { publisherNumber },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { sub1: true, sub2: true },
+    })
+    if (click) {
+      if (!s3 && click.sub1) s3 = click.sub1
+      if (!s4 && click.sub2) s4 = click.sub2
+    }
+  }
+
+  const amount = parsePayout(amountRaw)
+  const payout = parsePayout(payoutRaw) ?? amount ?? offer.payout
   if (!Number.isFinite(payout) || payout < 0) {
     return { ok: false, status: 400, error: 'Invalid payout' }
   }
@@ -225,8 +259,34 @@ export async function ingestMarketplacePostback(
         occurredAt,
         externalKey,
       },
-      select: { id: true },
+      select: {
+        id: true,
+        offerId: true,
+        campaignId: true,
+        campaignName: true,
+        payout: true,
+        country: true,
+        ipAddress: true,
+        status: true,
+        sub3: true,
+        sub4: true,
+        occurredAt: true,
+        createdAt: true,
+      },
     })
+
+    // Affmine: credit then fire publisher Global S2S with full conversion tokens.
+    let publisherPostback: { fired: boolean; status?: number; skipped?: string; url?: string } | undefined
+    try {
+      const { firePublisherGlobalPostback } = await import('@/lib/publisher-postback')
+      publisherPostback = await firePublisherGlobalPostback(publisher.id, {
+        ...lead,
+        amount: amount ?? lead.payout,
+      })
+    } catch (error) {
+      console.error('Publisher postback dispatch failed:', error)
+      publisherPostback = { fired: false, skipped: 'dispatch_error' }
+    }
 
     return {
       ok: true,
@@ -234,6 +294,7 @@ export async function ingestMarketplacePostback(
       publisherNumber,
       offerId: offer.id,
       payout,
+      publisherPostback,
     }
   } catch (error: unknown) {
     const code = typeof error === 'object' && error && 'code' in error

@@ -11,11 +11,9 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  CircleHelp,
   CircleDollarSign,
   CircleUserRound,
   CodeXml,
-  FileChartColumn,
   Flame,
   Gauge,
   LayoutDashboard,
@@ -75,6 +73,7 @@ import {
   buildPublicTrackingUrl,
   getTrackingDomainOrigin,
 } from '@/lib/tracking'
+import { PUBLISHER_POSTBACK_URL_EXAMPLE } from '@/lib/postback-tokens'
 import styles from './Dashboard.module.css'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
@@ -340,7 +339,7 @@ const menuGroups: MenuGroup[] = [
   { label: 'Offers', iconClass: 'fa fa-tags', items: [{ label: 'Browse', href: '/campaigns/browse' }, { label: 'New added', href: '/campaigns/new' }, { label: 'Incentive Offers', href: '/incentive_offers' }, { label: 'Offer Approval', href: '/campaigns/approvals' }] },
   { label: 'Reports', iconClass: 'fa fa-pie-chart', items: [{ label: 'Daily reports', href: '/reports/daily' }, { label: 'Campaign reports', href: '/reports/campaign' }, { label: 'Geo reports', href: '/reports/geo' }, { label: 'Tool reports', href: '/reports/tool' }, { label: 'SubID reports', href: '/reports/subid' }, { label: 'Conversions', href: '/reports/conversions' }] },
   { label: 'Incentive Tools', iconClass: 'fa fa-th-large', items: [{ label: 'Content Locker', href: '/contentlocker' }, { label: 'Offerwall', href: '/offerwall' }] },
-  { label: 'Developer Tools', iconClass: 'fa fa-cogs', items: [{ label: 'Postback', href: '/tools/postback' }, { label: 'API', href: '/tools/api' }] },
+  { label: 'Developer Tools', iconClass: 'fa fa-cogs', items: [{ label: 'Postback', href: '/tools/postback' }] },
   { label: 'Account', iconClass: 'fa fa-user', items: [{ label: 'Settings', href: '/account/settings' }, { label: 'Referral', href: '/account/referral' }, { label: 'Publishers', href: '/account/publishers' }] },
 ]
 
@@ -701,7 +700,6 @@ const pageTitles: Record<string, string> = {
   '/campaigns/add': 'Add offer',
   '/campaigns/approvals': 'Offer Approval',
   '/tools/postback': 'Global Postback',
-  '/tools/api': 'API',
   '/contentlocker': 'Content Locker',
   '/offerwall': 'OfferWall',
   '/account/settings': 'Account',
@@ -1497,6 +1495,12 @@ export default function DashboardOverview() {
     setCampaignPreviewOpen(false)
   }, [pathname])
 
+  useEffect(() => {
+    if (pathname === '/tools/api') {
+      router.replace('/tools/postback')
+    }
+  }, [pathname, router])
+
   const toggleSidebar = () => {
     if (window.matchMedia('(max-width: 760px)').matches) {
       setMobileNavOpen((open) => !open)
@@ -1633,6 +1637,7 @@ export default function DashboardOverview() {
           role?: string
           isActive?: boolean
           inboundUrl?: string
+          url?: string
           earningsSinceLastInvoice?: number
         }>
       })
@@ -1641,6 +1646,10 @@ export default function DashboardOverview() {
         if (data.role === 'MANAGER' && data.inboundUrl) {
           setMarketplacePostbackUrl(data.inboundUrl)
           setPostbackEnabled(data.isActive !== false)
+        }
+        if (data.role === 'PUBLISHER') {
+          setPostbackEnabled(data.isActive !== false)
+          if (typeof data.url === 'string') setPostbackUrl(data.url)
         }
         if (typeof data.earningsSinceLastInvoice === 'number') {
           setPublisherEarnings(data.earningsSinceLastInvoice)
@@ -4871,57 +4880,89 @@ export default function DashboardOverview() {
           </section>
         ) : pathname === '/tools/postback' ? (
           <>
-            {userRole === 'MANAGER' ? (
-              <section className={`${styles.panel} ${styles.dataPage}`}>
-                <h2 className={styles.sectionTitle}>MARKETPLACE INBOUND POSTBACK</h2>
-                <div className={styles.dataForm}>
-                  <p className={styles.pageNotice} role="note">
-                    Paste this URL into your main marketplace postback settings. Uses only marketplace tokens
-                    (<code>#s1#</code>–<code>#s4#</code>, <code>#payout#</code>, <code>#amount#</code>, <code>#cmpid#</code>, <code>#cmpname#</code>, <code>#datetime#</code>, <code>#ip#</code>, <code>#country#</code>).
-                    Mapping: <code>s1=publisher_id</code>, <code>s2=offer_id</code>, <code>s3=sub1</code>, <code>s4=sub2</code>.
+            <section className={`${styles.panel} ${styles.postbackEditPanel}`}>
+              <div className={styles.postbackPanelTitle}>
+                <i className={`fa fa-info ${styles.postbackTitleIcon}`} aria-hidden="true" />
+                {userRole === 'MANAGER' ? 'Marketplace Inbound Postback' : 'Edit Postback'}
+              </div>
+              <div className={styles.postbackPanelBody}>
+                {userRole === 'MANAGER' ? (
+                  <p className={styles.postbackManagerNote} role="note">
+                    Paste this URL into your main marketplace postback settings. Mapping:
+                    {' '}<code className={styles.postbackTokenCode}>s1=publisher_id</code>,
+                    {' '}<code className={styles.postbackTokenCode}>s2=offer_id</code>,
+                    {' '}<code className={styles.postbackTokenCode}>s3=sub1</code>,
+                    {' '}<code className={styles.postbackTokenCode}>s4=sub2</code>.
                   </p>
-                  <label className={styles.dataField}>Postback status
-                    <span className={styles.postbackToggle}>
-                      <input
-                        type="checkbox"
-                        checked={postbackEnabled}
-                        onChange={(event) => {
-                          const next = event.target.checked
-                          setPostbackEnabled(next)
-                          void fetch('/api/postback/config', {
-                            method: 'PATCH',
-                            credentials: 'include',
-                            headers: { 'content-type': 'application/json' },
-                            body: JSON.stringify({ isActive: next }),
-                          }).then(async (response) => {
-                            if (!response.ok) {
-                              setPageNotice('Unable to update postback status.')
-                              setPostbackEnabled(!next)
-                              return
-                            }
-                            setPageNotice(next ? 'Marketplace postback enabled.' : 'Marketplace postback disabled.')
-                          }).catch(() => {
+                ) : null}
+                <div className={styles.postbackFormGroup}>
+                  <label className={styles.postbackFormLabel}>Postback status</label>
+                  <div className={styles.postbackFormControl}>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={postbackEnabled}
+                      className={`${styles.postbackSwitch} ${postbackEnabled ? styles.postbackSwitchOn : styles.postbackSwitchOff}`}
+                      onClick={() => {
+                        const next = !postbackEnabled
+                        setPostbackEnabled(next)
+                        void fetch('/api/postback/config', {
+                          method: 'PATCH',
+                          credentials: 'include',
+                          headers: { 'content-type': 'application/json' },
+                          body: JSON.stringify({ isActive: next }),
+                        }).then(async (response) => {
+                          if (!response.ok) {
                             setPostbackEnabled(!next)
                             setPageNotice('Unable to update postback status.')
-                          })
-                        }}
-                      />
-                      <span>{postbackEnabled ? 'On' : 'Off'}</span>
-                    </span>
-                  </label>
-                  <label className={styles.dataField}>Manager postback URL (for marketplace)
-                    <input
-                      type="url"
-                      readOnly
-                      value={marketplacePostbackLoading ? 'Loading…' : marketplacePostbackUrl}
-                      onClick={(event) => {
-                        if (marketplacePostbackUrl) event.currentTarget.select()
+                            return
+                          }
+                          setPageNotice(next
+                            ? (userRole === 'MANAGER' ? 'Marketplace postback enabled.' : 'Postback enabled.')
+                            : (userRole === 'MANAGER' ? 'Marketplace postback disabled.' : 'Postback disabled.'))
+                        }).catch(() => {
+                          setPostbackEnabled(!next)
+                          setPageNotice('Unable to update postback status.')
+                        })
                       }}
-                    />
+                    >
+                      <span className={styles.postbackSwitchGroup} aria-hidden="true">
+                        <span className={styles.postbackSwitchOnLabel}>On</span>
+                        <span className={styles.postbackSwitchOffLabel}>Off</span>
+                        <span className={styles.postbackSwitchHandle} />
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <div className={styles.postbackFormGroup}>
+                  <label className={styles.postbackFormLabel} htmlFor="global-s2s-postback">
+                    {userRole === 'MANAGER' ? 'Manager postback URL (for marketplace)' : 'Global S2S Postback URL'}
                   </label>
+                  <div className={styles.postbackFormControl}>
+                    <input
+                      id="global-s2s-postback"
+                      type="text"
+                      className={styles.postbackUrlInput}
+                      readOnly={userRole === 'MANAGER'}
+                      value={userRole === 'MANAGER'
+                        ? (marketplacePostbackLoading ? 'Loading…' : marketplacePostbackUrl)
+                        : postbackUrl}
+                      onChange={userRole === 'MANAGER' ? undefined : (event) => setPostbackUrl(event.target.value)}
+                      onClick={userRole === 'MANAGER' ? (event) => {
+                        if (marketplacePostbackUrl) event.currentTarget.select()
+                      } : undefined}
+                      placeholder={userRole === 'MANAGER'
+                        ? undefined
+                        : PUBLISHER_POSTBACK_URL_EXAMPLE}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className={styles.postbackPanelFooter}>
+                {userRole === 'MANAGER' ? (
                   <button
                     type="button"
-                    className={styles.pagePrimaryButton}
+                    className={styles.postbackSaveButton}
                     disabled={!marketplacePostbackUrl}
                     onClick={async () => {
                       if (!marketplacePostbackUrl) return
@@ -4935,86 +4976,106 @@ export default function DashboardOverview() {
                   >
                     <i className="fa fa-copy" aria-hidden="true" />Copy URL
                   </button>
-                  {pageNotice && <p className={styles.pageNotice} role="status">{pageNotice}</p>}
-                </div>
-              </section>
-            ) : (
-              <section className={`${styles.panel} ${styles.dataPage}`}>
-                <h2 className={styles.sectionTitle}>EDIT POSTBACK</h2>
-                <div className={styles.dataForm}>
-                  <label className={styles.dataField}>Postback status
-                    <span className={styles.postbackToggle}>
-                      <input type="checkbox" checked={postbackEnabled} onChange={(event) => setPostbackEnabled(event.target.checked)} />
-                      <span>{postbackEnabled ? 'On' : 'Off'}</span>
-                    </span>
-                  </label>
-                  <label className={styles.dataField}>Global S2S Postback URL
-                    <input
-                      type="url"
-                      value={postbackUrl}
-                      onChange={(event) => setPostbackUrl(event.target.value)}
-                      placeholder="http://example.com/postback.php?offerID=#cmpid#&subID=#s1#&payout=#payout#"
-                    />
-                  </label>
-                  <button type="button" className={styles.pagePrimaryButton} onClick={() => setPageNotice('Postback settings cannot be saved until the account service is connected.')}>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.postbackSaveButton}
+                    onClick={() => {
+                      void fetch('/api/postback/config', {
+                        method: 'PATCH',
+                        credentials: 'include',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ url: postbackUrl, isActive: postbackEnabled }),
+                      }).then(async (response) => {
+                        if (!response.ok) {
+                          const payload = await response.json().catch(() => null) as { error?: string } | null
+                          setPageNotice(payload?.error || 'Unable to save postback settings.')
+                          return
+                        }
+                        const data = await response.json() as { url?: string; isActive?: boolean }
+                        if (typeof data.url === 'string') setPostbackUrl(data.url)
+                        if (typeof data.isActive === 'boolean') setPostbackEnabled(data.isActive)
+                        setPageNotice('Postback settings saved.')
+                      }).catch(() => {
+                        setPageNotice('Unable to save postback settings.')
+                      })
+                    }}
+                  >
                     <i className="fa fa-save" aria-hidden="true" />Save
                   </button>
-                  {pageNotice && <p className={styles.pageNotice} role="status">{pageNotice}</p>}
-                </div>
-              </section>
-            )}
-            <section className={`${styles.panel} ${styles.dataPage}`}>
-              <h2 className={styles.sectionTitle}>POSTBACK TOKENS</h2>
-              <div className={styles.postbackTokens}>
-                <div className={styles.dataTableWrap}>
-                  <table className={styles.dataTable}>
-                    <thead><tr><th>Token</th><th>Description</th></tr></thead>
-                    <tbody>{[
-                      ['#cmpid#', 'Campaign ID'],
-                      ['#cmpname#', 'Campaign name'],
-                      ['#payout#', 'Payout (in USD)'],
-                      ['#datetime#', 'Conversion date & time (Unix timestamp format)'],
-                      ['#ip#', 'Conversion IP'],
-                      ['#country#', 'Conversion country'],
-                    ].map(([token, description]) => <tr key={token}><td>{token}</td><td>{description}</td></tr>)}</tbody>
+                )}
+              </div>
+              {pageNotice ? <p className={styles.postbackNotice} role="status">{pageNotice}</p> : null}
+            </section>
+            <section className={`${styles.panel} ${styles.postbackTokensPanel}`}>
+              <div className={styles.postbackPanelTitle}>
+                <i className={`fa fa-cogs ${styles.postbackTitleIcon}`} aria-hidden="true" />
+                {' '}Postback Tokens
+              </div>
+              <div className={styles.postbackTokensGrid}>
+                <div className={styles.postbackTokenCol}>
+                  <table className={styles.postbackTokenTable}>
+                    <colgroup>
+                      <col className={styles.postbackTokenColNarrow} />
+                      <col />
+                    </colgroup>
+                    <thead>
+                      <tr><th>Token</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                      {([
+                        ['#cmpid#', 'Campaign ID'],
+                        ['#cmpname#', 'Campaign name'],
+                        ['#payout#', 'Payout (in USD)'],
+                        ['#datetime#', 'Conversion date & time (Unix timestamp format)'],
+                        ['#ip#', 'Conversion IP'],
+                        ['#country#', 'Conversion country'],
+                      ] as const).map(([token, description]) => (
+                        <tr key={token}>
+                          <th scope="row"><code className={styles.postbackTokenCode}>{token}</code></th>
+                          <td>{description}</td>
+                        </tr>
+                      ))}
+                    </tbody>
                   </table>
                 </div>
-                <div className={styles.dataTableWrap}>
-                  <table className={styles.dataTable}>
-                    <thead><tr><th>Token</th><th>Description</th></tr></thead>
-                    <tbody>{[
-                      ['#s1#', 'SubID 1 (our publisher ID)'],
-                      ['#s2#', 'SubID 2 (our offer ID)'],
-                      ['#s3#', 'SubID 3 (publisher sub 1)'],
-                      ['#s4#', 'SubID 4 (publisher sub 2)'],
-                      ['#amount#', 'Virtual currency amount Offerwall only'],
-                    ].map(([token, description]) => <tr key={token}><td>{token}</td><td>{description}</td></tr>)}</tbody>
+                <div className={styles.postbackTokenCol}>
+                  <table className={styles.postbackTokenTable}>
+                    <colgroup>
+                      <col className={styles.postbackTokenColNarrow} />
+                      <col />
+                    </colgroup>
+                    <thead>
+                      <tr><th>Token</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                      {(userRole === 'MANAGER' ? [
+                        ['#s1#', 'SubID 1 (our publisher ID)'],
+                        ['#s2#', 'SubID 2 (our offer ID)'],
+                        ['#s3#', 'SubID 3 (publisher sub 1)'],
+                        ['#s4#', 'SubID 4 (publisher sub 2)'],
+                      ] : [
+                        ['#s1#', 'SubID 1'],
+                        ['#s2#', 'SubID 2'],
+                        ['#s3#', 'SubID 3'],
+                        ['#s4#', 'SubID 4'],
+                      ]).map(([token, description]) => (
+                        <tr key={token}>
+                          <th scope="row"><code className={styles.postbackTokenCode}>{token}</code></th>
+                          <td>{description}</td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <th scope="row"><code className={styles.postbackTokenCode}>#amount#</code></th>
+                        <td>
+                          Virtual currency amount{' '}
+                          <span className={styles.postbackOfferwallBadge}>Offerwall only</span>
+                        </td>
+                      </tr>
+                    </tbody>
                   </table>
                 </div>
               </div>
-            </section>
-          </>
-        ) : pathname === '/tools/api' ? (
-          <>
-            <section className={`${styles.panel} ${styles.dataPage} ${styles.apiCredentialPanel}`}>
-              <h2 className={styles.sectionTitle}><CircleHelp size={15} />API CREDENTIALS</h2>
-              <div className={styles.credentialList}>
-                {['Affiliate ID', 'API Key'].map((label) => (
-                  <div key={label}>
-                    <label htmlFor={`api-${label.toLowerCase().replace(/\s/g, '-')}`}>{label}</label>
-                    <div className={styles.credentialValue}>
-                      <input id={`api-${label.toLowerCase().replace(/\s/g, '-')}`} value="" readOnly />
-                      <button type="button" onClick={() => setPageNotice('Nothing to copy yet.')}>Copy</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-            <section className={`${styles.panel} ${styles.dataPage} ${styles.apiDocumentation}`}>
-              <h2 className={styles.sectionTitle}><FileChartColumn size={15} />DOCUMENTATION &amp; EXAMPLES</h2>
-              <p>Our API is easy to integrate in any platform and using any programming language by using GET requests and receiving XML/JSON responses. Please check our documentation and if you cannot integrate, please contact us and our technical team will do their best to accomplish what you need.</p>
-              <a className={styles.pagePrimaryButton} href="https://network.affmine.com/data/Publisher%20API%20Documentation.pdf" target="_blank" rel="noreferrer">View API Documentation</a>
-              {pageNotice && <p className={styles.pageNotice} role="status">{pageNotice}</p>}
             </section>
           </>
         ) : pathname === '/account/settings' ? (

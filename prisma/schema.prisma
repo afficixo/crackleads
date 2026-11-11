@@ -45,6 +45,9 @@ model User {
   paymentPasswordHash String?
   password         String
   botFallbackUrl   String?
+  // Publisher Global S2S postback URL (Developer Tools > Postback)
+  globalPostbackUrl     String  @default("")
+  globalPostbackEnabled Boolean @default(true)
   role             UserRole    @default(PUBLISHER)
   status           UserStatus  @default(PENDING)
   referralCode     String?     @unique

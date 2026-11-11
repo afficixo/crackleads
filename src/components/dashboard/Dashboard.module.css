@@ -1908,8 +1908,7 @@ input.reportRangeInput {
 }
 
 .paymentInfoSection h2,
-.apiDocumentation h2,
-.postbackTokens > h2 {
+.apiDocumentation h2 {
   margin-bottom: 4px;
   color: #58666e;
   font-size: 13px;
@@ -1978,28 +1977,318 @@ input.reportRangeInput {
   margin-top: 12px;
 }
 
-.postbackToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: #58666e;
-  font-size: 12px;
-}
-
-.postbackToggle input,
 .settingsOptions input {
   accent-color: #5cb85c;
 }
 
-.postbackTokens {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 8px;
+/* Affmine /tools/postback — panel.panel-default + form-horizontal + bootstrap-toggle */
+.postbackEditPanel {
+  min-height: 0;
+  margin: 0 0 10px;
+  padding: 10px 20px;
+  color: #58666e;
+  font-size: 13px;
+  line-height: 22.1px;
 }
 
-.postbackTokens .dataTable {
-  margin-top: 0;
+.postbackTokensPanel {
+  min-height: 0;
+  margin: 0 0 10px;
+  padding: 10px 0;
+  color: #58666e;
+  font-size: 13px;
+  line-height: 22.1px;
+}
+
+.postbackPanelTitle {
+  display: block;
+  margin: 0;
+  padding: 0 0 5px;
+  color: #58666e;
+  font-family: Montserrat, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 22.1px;
+  text-transform: uppercase;
+}
+
+.postbackTokensPanel .postbackPanelTitle {
+  padding: 0 15px 5px;
+}
+
+.postbackTitleIcon {
+  margin-right: 10px;
+  color: #58666e;
+  font-size: 13px;
+  line-height: 13px;
+}
+
+.postbackPanelBody {
+  padding: 0;
+}
+
+.postbackManagerNote {
+  margin: 0 0 18px;
+  color: #58666e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.postbackFormGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin: 0 0 18px;
+}
+
+.postbackFormLabel {
+  flex: 0 0 16.6667%;
+  max-width: 16.6667%;
+  padding: 7px 5px 0 15px;
+  color: #58666e;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 22.1px;
+}
+
+.postbackFormControl {
+  flex: 0 0 83.3333%;
+  max-width: 83.3333%;
+  padding-left: 0;
+}
+
+.postbackUrlInput {
+  display: block;
+  width: 100%;
+  height: 34px;
+  border: 1px solid #bdc4c9;
+  border-radius: 3px;
+  padding: 6px 12px 6px 10px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 #f1f0f1;
+  color: #555;
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.postbackUrlInput:focus {
+  outline: 0;
+  border-color: #a0aab0;
+}
+
+.postbackPanelFooter {
+  margin: 20px 0 -10px;
+  border-top: 1px solid #ddd;
+  border-radius: 0 0 3px 3px;
+  padding: 10px 0;
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.postbackSaveButton {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 3px;
+  padding: 7px 20px;
+  background: #668094;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.postbackSaveButton:hover:not(:disabled) {
+  background: #5a7386;
+}
+
+.postbackSaveButton:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.postbackNotice {
+  margin: 8px 0 0;
+  border: 1px solid #b7dced;
+  border-radius: 3px;
+  padding: 8px 12px;
+  background: #d9edf7;
+  color: #31708f;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* bootstrap-toggle mini (57×25) */
+.postbackSwitch {
+  position: relative;
+  display: inline-block;
+  width: 57px;
+  height: 25px;
+  overflow: hidden;
+  border: 1px solid #bdc4c9;
+  border-radius: 999px;
+  padding: 0;
+  background: #fff;
+  color: #58666e;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.postbackSwitchGroup {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 138%;
+  height: 100%;
+  transition: left 0.35s;
+}
+
+.postbackSwitchOn .postbackSwitchGroup {
+  left: 0;
+}
+
+.postbackSwitchOff .postbackSwitchGroup {
+  left: -38%;
+}
+
+.postbackSwitchOnLabel,
+.postbackSwitchOffLabel,
+.postbackSwitchHandle {
+  position: absolute;
+  top: 0;
+  display: block;
+  height: 100%;
+  box-sizing: border-box;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 23px;
+  text-align: center;
+}
+
+.postbackSwitchOnLabel {
+  left: 0;
+  width: 44px;
+  padding: 0 12px 0 8px;
+  background: #5ff442;
+  color: #58666e;
+}
+
+.postbackSwitchOffLabel {
+  right: 0;
+  width: 44px;
+  padding: 0 8px 0 12px;
+  background: #f9f9f9;
+  color: #58666e;
+}
+
+.postbackSwitchHandle {
+  left: 50%;
+  z-index: 1;
+  width: 50px;
+  margin-left: -25px;
+  border: 1px solid #ccc;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.postbackTokensGrid {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.postbackTokenCol {
+  flex: 0 0 50%;
+  max-width: 50%;
+  padding: 0 5px 0 15px;
+  box-sizing: border-box;
+}
+
+.postbackTokenColNarrow {
+  width: 22%;
+}
+
+.postbackTokenTable {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  color: #58666e;
+  font-size: 13px;
+  line-height: 22.1px;
+}
+
+.postbackTokenTable thead th {
+  border-bottom: 2px solid #ddd;
+  padding: 15px;
+  color: #37363e;
+  font-family: Montserrat, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20.4px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.postbackTokenTable tbody th,
+.postbackTokenTable tbody td {
+  border-top: 1px solid #ddd;
+  padding: 15px;
+  font-weight: 400;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.postbackTokenTable tbody th {
+  font-weight: 400;
+}
+
+.postbackTokenCode {
+  display: inline;
+  border: 1px solid #c3e1ff;
+  border-radius: 4px;
+  padding: 2px;
+  background: #edf6ff;
+  color: #000;
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 11.7px;
+  font-weight: 700;
+  line-height: 19.89px;
+}
+
+.postbackOfferwallBadge {
+  display: inline;
+  border-radius: 4px;
+  padding: 1px 6px;
+  background: #668094;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 13px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 991px) {
+  .postbackFormLabel,
+  .postbackFormControl {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .postbackFormLabel {
+    padding: 0 0 6px;
+  }
+
+  .postbackTokenCol {
+    flex: 0 0 100%;
+    max-width: 100%;
+    padding: 0 15px;
+  }
 }
 
 .listTools {
