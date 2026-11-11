@@ -67,19 +67,81 @@ export async function POST(request: Request) {
       )
     }
 
-    // Try normal credential verification but handle DB errors gracefully.
-    // In local development we still want a usable bootstrap session even when the
-    // database-backed user record is missing or Prisma cannot upsert it yet.
+    // Env manager credentials always win (create/upgrade to MANAGER).
+    // Otherwise a leftover PUBLISHER row with the same username would keep
+    // logging you into the publisher dashboard on a fresh deploy.
+    const isManagerEnvLogin = Boolean(
+      MANAGER_ENV_USERNAME
+      && MANAGER_ENV_PASSWORD
+      && username === MANAGER_ENV_USERNAME
+      && password === MANAGER_ENV_PASSWORD
+    )
+
     let user = null
     let dbError = false
-    try {
-      user = await verifyCredentials(username, password)
-    } catch (err) {
-      console.error('verifyCredentials error for user=', username, err)
-      dbError = true
+
+    if (isManagerEnvLogin) {
+      try {
+        const existing = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { username: { equals: MANAGER_ENV_USERNAME, mode: 'insensitive' } },
+              { email: { equals: MANAGER_ENV_USERNAME, mode: 'insensitive' } },
+            ],
+          },
+        })
+
+        const hashed = await bcrypt.hash(MANAGER_ENV_PASSWORD, 10)
+        if (!existing) {
+          user = await createUserSafe({
+            username: MANAGER_ENV_USERNAME,
+            email: `${MANAGER_ENV_USERNAME}@example.com`,
+            password: hashed,
+            role: 'MANAGER',
+            status: 'ACTIVE',
+          } as any)
+        } else {
+          user = await prisma.user.update({
+            where: { id: existing.id },
+            data: {
+              password: hashed,
+              role: 'MANAGER',
+              status: 'ACTIVE',
+              lastLogin: new Date(),
+            },
+            select: {
+              id: true,
+              username: true,
+              role: true,
+              status: true,
+            },
+          })
+        }
+      } catch (err) {
+        console.error('Manager bootstrap/login failed for user=', username, err)
+        dbError = true
+        console.warn('DB unavailable; issuing in-memory token for', username)
+        user = { id: `local-${MANAGER_ENV_USERNAME}`, username: MANAGER_ENV_USERNAME, role: 'MANAGER', status: 'ACTIVE' } as any
+      }
+    } else {
+      // Normal publisher (or other) credential verification.
+      try {
+        user = await verifyCredentials(username, password)
+      } catch (err) {
+        console.error('verifyCredentials error for user=', username, err)
+        dbError = true
+      }
     }
 
-    if (user && user.status !== 'ACTIVE') {
+    if (!user) {
+      console.error('Invalid credentials attempt for user=', username, { dbError })
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401, headers: getCorsHeaders(origin) }
+      )
+    }
+
+    if (user.status !== 'ACTIVE') {
       const message = user.role === 'PUBLISHER'
         ? user.status === 'PENDING'
           ? 'Your publisher account is currently awaiting manager approval.'
@@ -89,49 +151,6 @@ export async function POST(request: Request) {
         : 'Your account is disabled.'
 
       return NextResponse.json({ error: message }, { status: 403, headers: getCorsHeaders(origin) })
-    }
-
-    if (!user) {
-      if (MANAGER_ENV_USERNAME && MANAGER_ENV_PASSWORD && username === MANAGER_ENV_USERNAME && password === MANAGER_ENV_PASSWORD) {
-        if (dbError) {
-          console.warn('DB unavailable; issuing in-memory token for', username)
-          user = { id: `local-${MANAGER_ENV_USERNAME}`, username: MANAGER_ENV_USERNAME, role: 'MANAGER' } as any
-        } else {
-          const existingManager = await prisma.user.findUnique({
-            where: { username: MANAGER_ENV_USERNAME },
-          })
-
-          if (!existingManager) {
-            try {
-              const hashed = await bcrypt.hash(MANAGER_ENV_PASSWORD, 10)
-              user = await createUserSafe({
-                username: MANAGER_ENV_USERNAME,
-                email: `${MANAGER_ENV_USERNAME}@example.com`,
-                password: hashed,
-                role: 'MANAGER',
-                status: 'ACTIVE',
-              } as any)
-            } catch (err) {
-              console.error('Error creating manager user for login:', username, err)
-              return NextResponse.json(
-                { error: 'Unable to initialize manager account' },
-                { status: 503, headers: getCorsHeaders(origin) }
-              )
-            }
-          } else {
-            return NextResponse.json(
-              { error: 'Invalid credentials' },
-              { status: 401, headers: getCorsHeaders(origin) }
-            )
-          }
-        }
-      } else {
-        console.error('Invalid credentials attempt for user=', username)
-        return NextResponse.json(
-          { error: 'Invalid credentials' },
-          { status: 401, headers: getCorsHeaders(origin) }
-        )
-      }
     }
 
     const token = generateToken(user.id)
