@@ -101,6 +101,34 @@ model OfferApplication {
   @@map("offer_applications")
 }
 
+/// Shared campaign catalog (browse + incentive). Visible to all authenticated roles.
+model CampaignOffer {
+  id               String   @id
+  name             String
+  payout           Float
+  country          String
+  countries        String[] @default([])
+  action           String   @default("Apply")
+  requiresApproval Boolean  @default(true)
+  imageSource      String?
+  offerTypes       String[] @default([])
+  category         String?
+  device           String[] @default([])
+  description      String?
+  offerLink        String?
+  isHot            Boolean  @default(false)
+  status           String   @default("ACTIVE")
+  placement        String   @default("STANDARD")
+  incentiveActive  Boolean  @default(true)
+  createdById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([placement, status])
+  @@index([status, createdAt])
+  @@map("campaign_offers")
+}
+
 enum OfferApplicationStatus {
   PENDING
   APPROVED

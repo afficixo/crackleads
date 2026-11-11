@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     }
 
     const effectiveRole = normalizeEffectiveUserRole(user)
-    const publisherNumber = user.role === 'PUBLISHER'
+    const publisherNumber = (user.role === 'PUBLISHER' || user.role === 'MANAGER')
       ? (user.publisherNumber ?? await ensurePublisherNumber(user.id))
       : user.publisherNumber ?? null
 

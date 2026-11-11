@@ -151,7 +151,7 @@ export async function GET(request: Request) {
 
   const { user, origin } = auth
   try {
-    if (user.role === 'PUBLISHER') {
+    if (user.role === 'PUBLISHER' || user.role === 'MANAGER') {
       await ensurePublisherNumber(user.id)
     }
 

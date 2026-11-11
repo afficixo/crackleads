@@ -70,6 +70,10 @@ import {
   toolPublicPath,
   writeJson,
 } from '@/lib/incentive-tools'
+import {
+  buildPublicTrackingUrl,
+  getTrackingDomainOrigin,
+} from '@/lib/tracking'
 import styles from './Dashboard.module.css'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
@@ -417,6 +421,8 @@ type CampaignOffer = {
   isHot?: boolean
   status?: 'ACTIVE' | 'PAUSED'
   placement?: 'STANDARD' | 'INCENTIVE'
+  /** When false, incentive offer is off for Content Locker / OfferWall. */
+  incentiveActive?: boolean
   createdAt?: string
 }
 
@@ -453,8 +459,29 @@ const customOffersStorageKey = 'affmine-custom-offers'
 const campaignOverridesStorageKey = 'affmine-campaign-overrides'
 const deletedCampaignsStorageKey = 'affmine-deleted-campaigns'
 const activeIncentiveOffersStorageKey = 'affmine-active-incentive-offers'
-const defaultCampaignTrackingUrl = 'https://www.af9m8trk.com/6HH112BV/UQ711VGP/'
 const allOfferDevices = ['Windows', 'Mac', 'Android', 'iPhone', 'iPad', 'Mobile (Other)'] as const
+
+const resolvePublicTrackingOrigin = () => {
+  const configured = getTrackingDomainOrigin()
+  if (configured) return configured
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin
+  return ''
+}
+
+const buildPublisherTrackingUrl = (input: {
+  publisherId?: number | null
+  offerId?: string | null
+  subId1?: string
+  subId2?: string
+}) => {
+  if (input.publisherId == null || !input.offerId) return ''
+  return buildPublicTrackingUrl({
+    publisherId: input.publisherId,
+    offerId: input.offerId,
+    subId1: input.subId1,
+    subId2: input.subId2,
+  }, resolvePublicTrackingOrigin())
+}
 
 const initialOfferDraft: OfferDraft = {
   id: '',
@@ -599,21 +626,13 @@ const featuredCampaignsFromOffers = (campaigns: CampaignOffer[]): FeaturedCampai
     requiresApproval: campaign.requiresApproval,
   })
 
-  // Dashboard featured carousel = HOT non-incent browse offers with real creatives.
-  const hotStandard = campaigns.filter((campaign) => (
-    campaign.isHot
-    && campaign.status !== 'PAUSED'
-    && campaign.placement !== 'INCENTIVE'
-  ))
-  if (hotStandard.length) return hotStandard.map(toFeatured)
-
-  // Fallback: any HOT offer, then newest active standard offers.
-  const hotAny = campaigns.filter((campaign) => campaign.isHot && campaign.status !== 'PAUSED')
-  if (hotAny.length) return hotAny.map(toFeatured)
-
+  // Featured carousel = HOT offers only (no non-HOT fallback).
   return campaigns
-    .filter((campaign) => campaign.status !== 'PAUSED' && campaign.placement !== 'INCENTIVE')
-    .slice(0, 8)
+    .filter((campaign) => (
+      campaign.isHot
+      && campaign.status !== 'PAUSED'
+      && campaign.placement !== 'INCENTIVE'
+    ))
     .map(toFeatured)
 }
 
@@ -738,6 +757,35 @@ function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10)
 }
 
+function formatSupportTime(value: string, nowMs = Date.now()) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const diffMs = Math.max(0, nowMs - date.getTime())
+  const minutes = Math.floor(diffMs / 60000)
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(date)
+}
+
+function supportPublisherLabel(conversation: SupportConversationRecord) {
+  return conversation.publisher?.fullName || conversation.publisher?.username || 'Publisher'
+}
+
+function isSupportWaiting(conversation: SupportConversationRecord) {
+  const latest = conversation.messages[conversation.messages.length - 1]
+  return Boolean(latest && latest.sender.role === 'PUBLISHER')
+}
+
+function sortSupportConversations(conversations: SupportConversationRecord[]) {
+  return [...conversations].sort((first, second) => {
+    const waitingDelta = Number(isSupportWaiting(second)) - Number(isSupportWaiting(first))
+    if (waitingDelta !== 0) return waitingDelta
+    return Date.parse(second.updatedAt) - Date.parse(first.updatedAt)
+  })
+}
+
 const seedIncentiveOfferIdSet = new Set(seedIncentiveOffers.map((offer) => offer.id))
 const isMenuItemActive = (pathname: string, href: string, options?: { incentiveDetail?: boolean }) => {
   if (pathname === href) return true
@@ -804,11 +852,13 @@ export default function DashboardOverview() {
   const [selectedSupportId, setSelectedSupportId] = useState<string | null>(null)
   const [supportMessengerOpen, setSupportMessengerOpen] = useState(false)
   const [supportMessengerTab, setSupportMessengerTab] = useState<'home' | 'messages'>('home')
+  const [supportManagerPane, setSupportManagerPane] = useState<'list' | 'thread'>('list')
+  const [supportClockMs, setSupportClockMs] = useState(0)
   const supportThreadRef = useRef<HTMLDivElement>(null)
   const supportPopupThreadRef = useRef<HTMLDivElement>(null)
   const supportComposerRef = useRef<HTMLTextAreaElement>(null)
-  const [trackingSubIds, setTrackingSubIds] = useState(['', '', '', ''])
-  const [generatedTrackingUrl, setGeneratedTrackingUrl] = useState(defaultCampaignTrackingUrl)
+  const [trackingSubIds, setTrackingSubIds] = useState(['', ''])
+  const [generatedTrackingUrl, setGeneratedTrackingUrl] = useState('')
   const [trackingMessage, setTrackingMessage] = useState('')
   const [campaignNoticeOpen, setCampaignNoticeOpen] = useState(false)
   const [campaignPreviewOpen, setCampaignPreviewOpen] = useState(false)
@@ -829,7 +879,14 @@ export default function DashboardOverview() {
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [error, setError] = useState('')
   const [userName, setUserName] = useState('Publisher')
-  const supportFirstName = (userName || 'there').split(/\s+/)[0] || 'there'
+  const supportFirstName = (() => {
+    const raw = (userName || '').trim().split(/\s+/).filter(Boolean)[0] || ''
+    const lower = raw.toLowerCase()
+    if (!raw || lower === 'manager' || lower === 'publisher' || lower === 'admin' || lower === 'there') {
+      return ''
+    }
+    return raw.charAt(0).toUpperCase() + raw.slice(1)
+  })()
   const [userId, setUserId] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<'MANAGER' | 'PUBLISHER' | null>(null)
@@ -844,15 +901,38 @@ export default function DashboardOverview() {
   const openSupportMessenger = () => {
     setMobileNavOpen(false)
     setSupportMessengerTab('home')
+    setSupportManagerPane('list')
     setSupportMessengerOpen(true)
   }
   const closeSupportMessenger = () => {
     setSupportMessengerOpen(false)
     setSupportMessengerTab('home')
+    setSupportManagerPane('list')
   }
   const openSupportCompose = () => {
+    if (userRole === 'MANAGER') {
+      const prioritized = sortSupportConversations(supportConversations)
+      const nextId = prioritized.find((conversation) => isSupportWaiting(conversation))?.id
+        || prioritized[0]?.id
+        || selectedSupportId
+      if (nextId) {
+        setSelectedSupportId(nextId)
+        setSupportManagerPane('thread')
+      } else {
+        setSupportManagerPane('list')
+      }
+    }
     setSupportMessengerTab('messages')
     window.setTimeout(() => supportComposerRef.current?.focus(), 80)
+  }
+  const openManagerConversation = (conversationId: string) => {
+    setSelectedSupportId(conversationId)
+    setSupportManagerPane('thread')
+    setSupportMessengerTab('messages')
+    window.setTimeout(() => supportComposerRef.current?.focus(), 80)
+  }
+  const backToManagerInbox = () => {
+    setSupportManagerPane('list')
   }
   const [dismissingNoticeId, setDismissingNoticeId] = useState<string | null>(null)
   const [offerApplications, setOfferApplications] = useState<OfferApplicationRecord[]>([])
@@ -868,75 +948,90 @@ export default function DashboardOverview() {
   const [publisherCounts, setPublisherCounts] = useState({ ALL: 0, PENDING: 0, ACTIVE: 0, DISABLED: 0, REJECTED: 0 })
 
   useEffect(() => {
-    try {
-      const savedOffers = window.localStorage.getItem(customOffersStorageKey)
-      const parsedOffers = savedOffers ? JSON.parse(savedOffers) as unknown : []
-      if (Array.isArray(parsedOffers)) {
-        setCustomCampaignOffers(parsedOffers.filter((offer): offer is CampaignOffer => (
-          typeof offer?.id === 'string'
-          && typeof offer?.name === 'string'
-          && typeof offer?.payout === 'number'
-          && typeof offer?.country === 'string'
-        )))
-      }
-      const savedOverrides = window.localStorage.getItem(campaignOverridesStorageKey)
-      const parsedOverrides = savedOverrides ? JSON.parse(savedOverrides) as unknown : []
-      const savedOffersForActive = Array.isArray(parsedOffers)
-        ? parsedOffers.filter((offer): offer is CampaignOffer => (
-          typeof offer?.id === 'string'
-          && typeof offer?.name === 'string'
-          && typeof offer?.payout === 'number'
-          && typeof offer?.country === 'string'
-        ))
-        : []
-      const realOfferIdSet = new Set(savedOffersForActive.map((offer) => offer.id))
-      if (Array.isArray(parsedOverrides)) {
-        // Drop overrides for removed demo/seed catalogs — only keep edits to real custom offers.
-        const cleanedOverrides = parsedOverrides.filter((offer): offer is CampaignOffer => (
-          typeof offer?.id === 'string'
-          && realOfferIdSet.has(offer.id)
-          && typeof offer?.name === 'string'
-          && typeof offer?.payout === 'number'
-          && typeof offer?.country === 'string'
-        ))
-        setManagedCampaignOverrides(cleanedOverrides)
-        window.localStorage.setItem(campaignOverridesStorageKey, JSON.stringify(cleanedOverrides))
-      }
-      // Demo seed deletions are obsolete once the hardcoded catalog is empty.
-      setDeletedCampaignIds([])
-      window.localStorage.setItem(deletedCampaignsStorageKey, JSON.stringify([]))
-      const realIncentiveIdSet = new Set(
-        savedOffersForActive
-          .filter((offer) => offer.placement === 'INCENTIVE')
-          .map((offer) => offer.id),
-      )
-      const savedActiveIncentive = window.localStorage.getItem(activeIncentiveOffersStorageKey)
-      const parsedActiveIncentive = savedActiveIncentive ? JSON.parse(savedActiveIncentive) as unknown : null
-      if (Array.isArray(parsedActiveIncentive)) {
-        // Keep only IDs that still exist as real user-added incentive offers.
-        const nextActive = parsedActiveIncentive.filter((id): id is string => (
-          typeof id === 'string' && realIncentiveIdSet.has(id)
-        ))
-        setActiveIncentiveOfferIds(nextActive)
-        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(nextActive))
-      } else {
-        const nextActive = [...realIncentiveIdSet]
-        setActiveIncentiveOfferIds(nextActive)
-        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(nextActive))
-      }
+    let cancelled = false
 
+    const isOffer = (offer: unknown): offer is CampaignOffer => (
+      typeof (offer as CampaignOffer)?.id === 'string'
+      && typeof (offer as CampaignOffer)?.name === 'string'
+      && typeof (offer as CampaignOffer)?.payout === 'number'
+      && typeof (offer as CampaignOffer)?.country === 'string'
+    )
+
+    const readLocalOffers = () => {
+      try {
+        const savedOffers = window.localStorage.getItem(customOffersStorageKey)
+        const parsedOffers = savedOffers ? JSON.parse(savedOffers) as unknown : []
+        return Array.isArray(parsedOffers) ? parsedOffers.filter(isOffer) : []
+      } catch {
+        return [] as CampaignOffer[]
+      }
+    }
+
+    const applyOffers = (offers: CampaignOffer[]) => {
+      setCustomCampaignOffers(offers)
+      setManagedCampaignOverrides([])
+      setDeletedCampaignIds([])
+      const activeIds = offers
+        .filter((offer) => offer.placement === 'INCENTIVE' && offer.incentiveActive !== false && offer.status !== 'PAUSED')
+        .map((offer) => offer.id)
+      setActiveIncentiveOfferIds(activeIds)
+      try {
+        window.localStorage.setItem(customOffersStorageKey, JSON.stringify(offers))
+        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(activeIds))
+        window.localStorage.setItem(campaignOverridesStorageKey, JSON.stringify([]))
+        window.localStorage.setItem(deletedCampaignsStorageKey, JSON.stringify([]))
+      } catch { /* ignore */ }
+    }
+
+    const loadCatalog = async () => {
+      try {
+        const response = await fetch('/api/campaigns', { credentials: 'include', cache: 'no-store' })
+        if (!response.ok) throw new Error('catalog_unavailable')
+        const payload = await response.json() as { offers?: CampaignOffer[] }
+        const remoteOffers = Array.isArray(payload.offers) ? payload.offers.filter(isOffer) : []
+
+        // One-time migrate manager browser-local offers into the shared DB catalog.
+        const localOffers = readLocalOffers()
+        if (!remoteOffers.length && localOffers.length) {
+          const migrate = await fetch('/api/campaigns', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              offers: localOffers.map((offer) => ({
+                ...offer,
+                incentiveActive: offer.placement === 'INCENTIVE'
+                  ? (offer.incentiveActive !== false)
+                  : false,
+              })),
+            }),
+          })
+          if (migrate.ok) {
+            const migrated = await migrate.json() as { offers?: CampaignOffer[] }
+            if (!cancelled) applyOffers(Array.isArray(migrated.offers) ? migrated.offers.filter(isOffer) : localOffers)
+            return
+          }
+        }
+
+        if (!cancelled) applyOffers(remoteOffers)
+      } catch {
+        // Fall back to local-only so the manager still sees what they just created offline.
+        if (!cancelled) applyOffers(readLocalOffers())
+      }
+    }
+
+    try {
       const savedLockers = window.localStorage.getItem(contentLockersStorageKey)
       const savedWalls = window.localStorage.getItem(offerwallsStorageKey)
       setContentLockers(parseToolList(savedLockers ? JSON.parse(savedLockers) as unknown : [], 'locker'))
       setOfferwalls(parseToolList(savedWalls ? JSON.parse(savedWalls) as unknown : [], 'offerwall'))
     } catch {
-      setCustomCampaignOffers([])
-      setManagedCampaignOverrides([])
-      setDeletedCampaignIds([])
-      setActiveIncentiveOfferIds([])
       setContentLockers([])
       setOfferwalls([])
     }
+
+    void loadCatalog()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -1212,8 +1307,8 @@ export default function DashboardOverview() {
     } catch {
       setPageNotice('')
     }
-    setTrackingSubIds(['', '', '', ''])
-    setGeneratedTrackingUrl(defaultCampaignTrackingUrl)
+    setTrackingSubIds(['', ''])
+    setGeneratedTrackingUrl('')
     setTrackingMessage('')
     setCampaignNoticeOpen(false)
     setCampaignPreviewOpen(false)
@@ -1334,7 +1429,27 @@ export default function DashboardOverview() {
     const thread = supportPopupThreadRef.current || supportThreadRef.current
     if (!thread) return
     thread.scrollTop = thread.scrollHeight
-  }, [supportConversation?.messages.length, supportMessengerOpen])
+  }, [supportConversation?.messages.length, supportMessengerOpen, supportManagerPane])
+
+  useEffect(() => {
+    if (!supportMessengerOpen) return
+    const tick = () => setSupportClockMs(Date.now())
+    tick()
+    const timer = window.setInterval(tick, 60000)
+    return () => window.clearInterval(timer)
+  }, [supportMessengerOpen])
+
+  useEffect(() => {
+    const offerMatch = pathname.match(/^\/campaigns\/(\d+)$/)
+    const offerId = offerMatch?.[1]
+    if (!offerId || accountProfile.publisherNumber == null) return
+    setGeneratedTrackingUrl(buildPublisherTrackingUrl({
+      publisherId: accountProfile.publisherNumber,
+      offerId,
+      subId1: trackingSubIds[0],
+      subId2: trackingSubIds[1],
+    }))
+  }, [pathname, accountProfile.publisherNumber, trackingSubIds])
 
   useEffect(() => {
     if (pathname === '/incentive_offers') {
@@ -1579,7 +1694,7 @@ export default function DashboardOverview() {
     }))
   }
 
-  const submitOffer = (event: FormEvent<HTMLFormElement>) => {
+  const submitOffer = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setOfferFormError('')
 
@@ -1656,37 +1771,41 @@ export default function DashboardOverview() {
       isHot: existingOffer?.isHot ?? false,
       status: existingOffer?.status ?? 'ACTIVE',
       placement,
+      incentiveActive: isIncentive ? (existingOffer?.incentiveActive !== false) : false,
       createdAt: existingOffer?.createdAt ?? new Date().toISOString(),
     }
     try {
-      if (editingOfferId && allSeedCampaignOffers.some((campaign) => campaign.id === editingOfferId)) {
-        const updatedOverrides = [...managedCampaignOverrides.filter((campaign) => campaign.id !== id), newOffer]
-        window.localStorage.setItem(campaignOverridesStorageKey, JSON.stringify(updatedOverrides))
-        setManagedCampaignOverrides(updatedOverrides)
-      } else {
-        const updatedOffers = editingOfferId
-          ? [...customCampaignOffers.filter((campaign) => campaign.id !== id), newOffer]
-          : [...customCampaignOffers, newOffer]
-        window.localStorage.setItem(customOffersStorageKey, JSON.stringify(updatedOffers))
-        setCustomCampaignOffers(updatedOffers)
+      const saveResponse = await fetch(
+        editingOfferId ? `/api/campaigns/${encodeURIComponent(id)}` : '/api/campaigns',
+        {
+          method: editingOfferId ? 'PATCH' : 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newOffer),
+        },
+      )
+      if (!saveResponse.ok) {
+        const payload = await saveResponse.json().catch(() => null) as { error?: string } | null
+        setOfferFormError(payload?.error || 'Offer could not be saved.')
+        return
       }
-      if (isIncentive) {
-        let savedActive: string[] = activeIncentiveOfferIds
-        try {
-          const raw = window.localStorage.getItem(activeIncentiveOffersStorageKey)
-          const parsed = raw ? JSON.parse(raw) as unknown : null
-          if (Array.isArray(parsed)) {
-            savedActive = parsed.filter((value): value is string => typeof value === 'string')
-          }
-        } catch {
-          savedActive = activeIncentiveOfferIds
-        }
-        const nextActive = savedActive.includes(id) ? savedActive : [...savedActive, id]
-        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(nextActive))
+      const payload = await saveResponse.json() as { offer?: CampaignOffer; offers?: CampaignOffer[] }
+      const savedOffer = payload.offer
+        || (Array.isArray(payload.offers) ? payload.offers[0] : undefined)
+        || newOffer
+      const updatedOffers = [
+        ...customCampaignOffers.filter((campaign) => campaign.id !== id),
+        savedOffer,
+      ]
+      setCustomCampaignOffers(updatedOffers)
+      window.localStorage.setItem(customOffersStorageKey, JSON.stringify(updatedOffers))
+      if (isIncentive && savedOffer.incentiveActive !== false) {
+        const nextActive = activeIncentiveOfferIds.includes(id) ? activeIncentiveOfferIds : [...activeIncentiveOfferIds, id]
         setActiveIncentiveOfferIds(nextActive)
+        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(nextActive))
       }
     } catch {
-      setOfferFormError('Offer could not be saved in this browser.')
+      setOfferFormError('Offer could not be saved. Check your connection and try again.')
       return
     }
 
@@ -1768,18 +1887,32 @@ export default function DashboardOverview() {
     })
     .slice(0, 25)
   const detailedCampaign = campaignDetail ? allCampaignOffers.find((campaign) => campaign.id === campaignDetail[1]) : undefined
+  const publisherTrackingId = accountProfile.publisherNumber
   const updateCampaignTrackingLink = () => {
-    const trackingUrl = new URL(defaultCampaignTrackingUrl)
-    trackingSubIds.forEach((value, index) => {
-      const subId = value.trim()
-      if (subId) trackingUrl.searchParams.set(`s${index + 1}`, subId)
+    if (publisherTrackingId == null || !detailedCampaign?.id) {
+      setTrackingMessage('Publisher ID is required before generating a tracking link.')
+      return
+    }
+    const nextUrl = buildPublisherTrackingUrl({
+      publisherId: publisherTrackingId,
+      offerId: detailedCampaign.id,
+      subId1: trackingSubIds[0],
+      subId2: trackingSubIds[1],
     })
-    setGeneratedTrackingUrl(trackingUrl.toString())
-    setTrackingMessage('Tracking URL updated with the entered Sub IDs.')
+    if (!nextUrl) {
+      setTrackingMessage('Set TRACKING_DOMAIN (or open the app on a public origin) to generate links.')
+      return
+    }
+    setGeneratedTrackingUrl(nextUrl)
+    setTrackingMessage('Tracking URL updated with publisher, offer, and Sub IDs.')
   }
   const resetCampaignTrackingLink = () => {
-    setTrackingSubIds(['', '', '', ''])
-    setGeneratedTrackingUrl(defaultCampaignTrackingUrl)
+    setTrackingSubIds(['', ''])
+    const nextUrl = buildPublisherTrackingUrl({
+      publisherId: publisherTrackingId,
+      offerId: detailedCampaign?.id,
+    })
+    setGeneratedTrackingUrl(nextUrl)
     setTrackingMessage('Sub IDs cleared.')
   }
   const isContentLockerWizard = /^\/contentlocker\/(?:new|edit\/[^/]+)$/.test(pathname)
@@ -1806,15 +1939,32 @@ export default function DashboardOverview() {
                     : (offerPlacement === 'INCENTIVE' ? 'Add incentive offer' : 'Add offer'))
                   : reportPage?.title ?? tablePage?.title ?? pageTitles[pathname] ?? 'Account'
   const toggleIncentiveOfferActive = (campaignId: string) => {
+    const currentlyActive = activeIncentiveOfferIds.includes(campaignId)
+    const nextActive = !currentlyActive
     setActiveIncentiveOfferIds((current) => {
-      const next = current.includes(campaignId)
-        ? current.filter((id) => id !== campaignId)
-        : [...current, campaignId]
+      const next = nextActive
+        ? (current.includes(campaignId) ? current : [...current, campaignId])
+        : current.filter((id) => id !== campaignId)
       try {
         window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(next))
       } catch { /* ignore */ }
       return next
     })
+    setCustomCampaignOffers((current) => {
+      const next = current.map((offer) => (
+        offer.id === campaignId ? { ...offer, incentiveActive: nextActive } : offer
+      ))
+      try {
+        window.localStorage.setItem(customOffersStorageKey, JSON.stringify(next))
+      } catch { /* ignore */ }
+      return next
+    })
+    void fetch(`/api/campaigns/${encodeURIComponent(campaignId)}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ incentiveActive: nextActive }),
+    }).catch(() => { /* keep optimistic UI */ })
   }
 
   const activeIncentiveCatalog = allCampaignOffers
@@ -2192,51 +2342,61 @@ export default function DashboardOverview() {
   const campaignPageSize = pathname === '/campaigns/new' ? 100 : 50
   const campaignPageCount = Math.max(1, Math.ceil(filteredCampaigns.length / campaignPageSize))
   const visibleCampaigns = filteredCampaigns.slice((campaignPage - 1) * campaignPageSize, campaignPage * campaignPageSize)
-  const deleteCampaignOffer = (campaign: CampaignOffer) => {
+  const deleteCampaignOffer = async (campaign: CampaignOffer) => {
     if (userRole !== 'MANAGER' || !window.confirm(`Delete offer #${campaign.id} - ${campaign.name}?`)) return
 
     try {
-      if (allSeedCampaignOffers.some((seed) => seed.id === campaign.id)) {
-        const updatedDeletedIds = [...new Set([...deletedCampaignIds, campaign.id])]
-        window.localStorage.setItem(deletedCampaignsStorageKey, JSON.stringify(updatedDeletedIds))
-        setDeletedCampaignIds(updatedDeletedIds)
-      } else {
-        const updatedOffers = customCampaignOffers.filter((offer) => offer.id !== campaign.id)
-        window.localStorage.setItem(customOffersStorageKey, JSON.stringify(updatedOffers))
-        setCustomCampaignOffers(updatedOffers)
+      const response = await fetch(`/api/campaigns/${encodeURIComponent(campaign.id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!response.ok) {
+        window.alert('Offer could not be deleted.')
+        return
       }
-
-      const updatedOverrides = managedCampaignOverrides.filter((offer) => offer.id !== campaign.id)
-      if (updatedOverrides.length !== managedCampaignOverrides.length) {
-        window.localStorage.setItem(campaignOverridesStorageKey, JSON.stringify(updatedOverrides))
-        setManagedCampaignOverrides(updatedOverrides)
-      }
+      const updatedOffers = customCampaignOffers.filter((offer) => offer.id !== campaign.id)
+      window.localStorage.setItem(customOffersStorageKey, JSON.stringify(updatedOffers))
+      setCustomCampaignOffers(updatedOffers)
+      setActiveIncentiveOfferIds((current) => {
+        const next = current.filter((id) => id !== campaign.id)
+        try {
+          window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(next))
+        } catch { /* ignore */ }
+        return next
+      })
       setCampaignPage(1)
+      setPageNotice(`Offer #${campaign.id} deleted.`)
     } catch {
-      window.alert('Offer could not be deleted in this browser.')
+      window.alert('Offer could not be deleted. Check your connection and try again.')
     }
   }
-  const updateCampaignOfferStatus = (campaign: CampaignOffer, updates: Partial<Pick<CampaignOffer, 'isHot' | 'status'>>) => {
+  const updateCampaignOfferStatus = async (campaign: CampaignOffer, updates: Partial<Pick<CampaignOffer, 'isHot' | 'status'>>) => {
     if (userRole !== 'MANAGER') return
 
     const updatedOffer = { ...campaign, ...updates }
     try {
-      if (allSeedCampaignOffers.some((seed) => seed.id === campaign.id)) {
-        const updatedOverrides = [...managedCampaignOverrides.filter((offer) => offer.id !== campaign.id), updatedOffer]
-        window.localStorage.setItem(campaignOverridesStorageKey, JSON.stringify(updatedOverrides))
-        setManagedCampaignOverrides(updatedOverrides)
-      } else {
-        const updatedOffers = [...customCampaignOffers.filter((offer) => offer.id !== campaign.id), updatedOffer]
-        window.localStorage.setItem(customOffersStorageKey, JSON.stringify(updatedOffers))
-        setCustomCampaignOffers(updatedOffers)
+      const response = await fetch(`/api/campaigns/${encodeURIComponent(campaign.id)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      if (!response.ok) {
+        setPageNotice('Offer status could not be saved.')
+        return
       }
+      const payload = await response.json() as { offer?: CampaignOffer }
+      const savedOffer = payload.offer || updatedOffer
+      const updatedOffers = [...customCampaignOffers.filter((offer) => offer.id !== campaign.id), savedOffer]
+      window.localStorage.setItem(customOffersStorageKey, JSON.stringify(updatedOffers))
+      setCustomCampaignOffers(updatedOffers)
 
       const notice = updates.isHot !== undefined
         ? updates.isHot ? 'Offer marked HOT.' : 'HOT label removed.'
         : updates.status === 'PAUSED' ? 'Offer paused.' : 'Offer marked active.'
       setPageNotice(notice)
     } catch {
-      setPageNotice('Offer status could not be saved in this browser.')
+      setPageNotice('Offer status could not be saved. Check your connection and try again.')
     }
   }
   const chartPoints = chartClicks
@@ -2261,8 +2421,7 @@ export default function DashboardOverview() {
           )}
         </div>
         <div className={styles.featuredMeta}>
-          <b>Geo:</b> <CampaignUpdateFlag geo={campaign.country} id={campaign.id} /> <b>|</b>{' '}
-          {campaign.placement === 'INCENTIVE' ? 'Incent' : 'Non-Incent'} <b>|</b> {campaign.category}
+          <b>Geo:</b> <CampaignUpdateFlag geo={campaign.country} id={campaign.id} /> <b>|</b> {campaign.category}
         </div>
         <div className={styles.featuredMeta}><b>Payout:</b> <strong className={styles.payout}>{campaign.payout}</strong></div>
       </div>
@@ -3353,21 +3512,28 @@ export default function DashboardOverview() {
                         : actionKind === 'Pending'
                           ? styles.offerActionPending
                           : styles.offerActionView
-                      return <tr key={campaign.id} className={isIncentive && incentiveActive ? styles.incentiveOfferActiveRow : undefined}>
+                      const isPaused = campaign.status === 'PAUSED'
+                      return <tr key={campaign.id} className={isIncentive && incentiveActive && !isPaused ? styles.incentiveOfferActiveRow : undefined}>
                         {isIncentive && (
                           <td className={styles.incentiveActiveCell}>
-                            <div className={`${styles.incentiveCheckbox} ${incentiveActive ? styles.incentiveCheckboxChecked : ''}`}>
-                              <input
-                                id={`active-${campaign.id}`}
-                                type="checkbox"
-                                className={styles.incentiveCheckboxInput}
-                                checked={incentiveActive}
-                                disabled={actionKind === 'Pending'}
-                                onChange={() => toggleIncentiveOfferActive(campaign.id)}
-                                aria-label={`Activate offer ${campaign.id} for Content Locker and OfferWall`}
-                              />
-                              <label htmlFor={`active-${campaign.id}`} className={styles.incentiveCheckboxLabel} />
-                            </div>
+                            {isPaused ? (
+                              <span className={styles.incentivePausedStatus} title="Paused" aria-label={`Offer ${campaign.id} paused`}>
+                                <X size={12} strokeWidth={3} aria-hidden="true" />
+                              </span>
+                            ) : (
+                              <div className={`${styles.incentiveCheckbox} ${incentiveActive ? styles.incentiveCheckboxChecked : ''}`}>
+                                <input
+                                  id={`active-${campaign.id}`}
+                                  type="checkbox"
+                                  className={styles.incentiveCheckboxInput}
+                                  checked={incentiveActive}
+                                  disabled={actionKind === 'Pending'}
+                                  onChange={() => toggleIncentiveOfferActive(campaign.id)}
+                                  aria-label={`Activate offer ${campaign.id} for Content Locker and OfferWall`}
+                                />
+                                <label htmlFor={`active-${campaign.id}`} className={styles.incentiveCheckboxLabel} />
+                              </div>
+                            )}
                           </td>
                         )}
                         <td>{campaign.id}</td>
@@ -3388,8 +3554,8 @@ export default function DashboardOverview() {
                             ) : (
                               <span className={`${styles.campaignName} ${styles.campaignNameLocked}`} title={PENDING_OFFER_HINT}>{campaign.name}</span>
                             )}
-                            {!isIncentive && campaign.isHot && <span className={`${styles.campaignHot} ${styles.campaignRowHot}`}>HOT</span>}
-                            {campaign.status === 'PAUSED' && <span className={styles.campaignPausedLabel}>PAUSED</span>}
+                            {campaign.isHot && <span className={`${styles.campaignHot} ${styles.campaignRowHot}`}>HOT</span>}
+                            {!isIncentive && isPaused && <span className={styles.campaignPausedLabel}>PAUSED</span>}
                           </div>
                         </td>
                         <td>
@@ -3449,7 +3615,7 @@ export default function DashboardOverview() {
                                 <i className="fa fa-check" aria-hidden="true" />View
                               </a>
                             )}
-                            {canManageOffers && !isIncentive && (
+                            {canManageOffers && (
                               <div className={styles.offerActionMenu} data-offer-action-menu>
                                 <button type="button" className={styles.offerManagementAction} aria-label={`More actions for offer ${campaign.id}`} title="Offer actions" aria-haspopup="menu" aria-expanded={openOfferActionsId === campaign.id} onClick={(event) => {
                                   if (openOfferActionsId === campaign.id) {
@@ -3463,7 +3629,7 @@ export default function DashboardOverview() {
                                 }}><MoreHorizontal size={15} aria-hidden="true" /></button>
                                 {openOfferActionsId === campaign.id && (
                                   <div className={styles.offerActionMenuItems} style={offerActionMenuPosition ?? undefined} role="menu">
-                                    <button type="button" role="menuitem" onClick={() => { router.push(`/campaigns/add?edit=${encodeURIComponent(campaign.id)}`); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Pencil size={14} aria-hidden="true" />Edit offer</button>
+                                    <button type="button" role="menuitem" onClick={() => { router.push(`/campaigns/add?edit=${encodeURIComponent(campaign.id)}${isIncentive ? '&placement=incentive' : ''}`); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Pencil size={14} aria-hidden="true" />Edit offer</button>
                                     <button type="button" role="menuitem" onClick={() => { updateCampaignOfferStatus(campaign, { isHot: !campaign.isHot }); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Flame size={14} aria-hidden="true" />{campaign.isHot ? 'Remove HOT' : 'Mark as HOT'}</button>
                                     {campaign.status === 'PAUSED'
                                       ? <button type="button" role="menuitem" onClick={() => { updateCampaignOfferStatus(campaign, { status: 'ACTIVE' }); setOpenOfferActionsId(null); setOfferActionMenuPosition(null) }}><Play size={14} aria-hidden="true" />Mark as Active</button>
@@ -3602,14 +3768,24 @@ export default function DashboardOverview() {
                       <div className={styles.trackingLeft}>
                         <div className={styles.fieldLabel}>Tracking URL</div>
                         <div className={styles.trackingBadgeSuccess}>NEW tracking link - increased performance</div>
-                        <textarea aria-label="New tracking URL" readOnly value={generatedTrackingUrl} onClick={(event) => event.currentTarget.select()} />
-                        <div className={styles.trackingBadgePrimary}>OLD tracking link</div>
-                        <input aria-label="Old tracking URL" type="text" readOnly value={`https://go2affm.com/c/?p=63460&o=${detailedCampaign.id}`} onClick={(event) => event.currentTarget.select()} />
-                        <p>You can append subIDs to this URL for tracking purposes, for example add <code>&amp;s1=1234</code> where 1234 is your unique tracking ID. If you have <Link href="/tools/postback">postback</Link> set up, once a lead is generated, this information will be sent according to your postback setup.</p>
-                        <p>Supported subIDs: <code>&amp;s1=</code>, <code>&amp;s2=</code>, <code>&amp;s3=</code>, <code>&amp;s4=</code></p>
+                        <textarea
+                          aria-label="Publisher tracking URL"
+                          readOnly
+                          value={generatedTrackingUrl || (publisherTrackingId == null ? 'Publisher ID required…' : 'Generating tracking URL…')}
+                          onClick={(event) => {
+                            if (generatedTrackingUrl) event.currentTarget.select()
+                          }}
+                        />
+                        <p>
+                          This is your publisher tracking link on your domain. Clicks are mapped for postback as
+                          {' '}<code>s1=publisher_id</code>, <code>s2=offer_id</code>, <code>s3=sub1</code>, <code>s4=sub2</code> on the main offer URL.
+                          Use Sub ID fields below or append <code>&amp;s1=</code> / <code>&amp;s2=</code> for your own click IDs.
+                          Configure <Link href="/tools/postback">postback</Link> to receive conversions per publisher.
+                        </p>
+                        <p>Shown format: <code>/publisher_id/offer_id/?s1=&amp;s2=</code></p>
                       </div>
                       <div className={styles.trackingRight}>
-                        {['Sub ID 1', 'Sub ID 2', 'Sub ID 3', 'Sub ID 4'].map((label, index) => (
+                        {['Sub ID 1', 'Sub ID 2'].map((label, index) => (
                           <label className={styles.subIdField} key={label}>
                             <span>{label}</span>
                             <input type="text" value={trackingSubIds[index]} maxLength={100} onChange={(event) => setTrackingSubIds((current) => current.map((value, currentIndex) => currentIndex === index ? event.target.value : value))} />
@@ -3665,7 +3841,7 @@ export default function DashboardOverview() {
               <div className={styles.paymentSummary}>
                 <div><strong className={styles.paymentUp}>$0.00</strong><span>Total Paid</span></div>
                 <div><strong>$0.00</strong><span>Pending</span></div>
-                <div><strong className={styles.paymentUp}>$4.10</strong><span>Earnings since last invoice</span></div>
+                <div><strong className={styles.paymentUp}>$0.00</strong><span>Earnings since last invoice</span></div>
                 <div><strong>0</strong><span>Total payments</span></div>
               </div>
               <section className={styles.paymentInfoSection}>
@@ -4626,159 +4802,317 @@ export default function DashboardOverview() {
           </section>
         </div>}
       </main>
-      {supportMessengerOpen && (
-        <div className={styles.supportMessenger} role="dialog" aria-label="Support messenger" aria-modal="false">
-          {supportMessengerTab === 'home' ? (
-            <div className={styles.supportMessengerHome}>
-              <div className={styles.supportMessengerHomeTop}>
-                <div className={styles.supportMessengerHomeBar}>
-                  <span className={styles.supportMessengerLogo} aria-hidden="true">a</span>
-                  <button type="button" className={styles.supportMessengerClose} aria-label="Close support" onClick={closeSupportMessenger}>
-                    <X size={18} strokeWidth={2.25} />
+      {supportMessengerOpen && (() => {
+        const isManagerSupport = userRole === 'MANAGER'
+        const orderedConversations = sortSupportConversations(supportConversations)
+        const waitingConversations = orderedConversations.filter((conversation) => isSupportWaiting(conversation))
+        const openConversationCount = orderedConversations.filter((conversation) => conversation.status !== 'RESOLVED').length
+        const recentConversations = orderedConversations.slice(0, 5)
+        const selectedConversationMeta = orderedConversations.find((conversation) => conversation.id === selectedSupportId)
+          || supportConversation
+        const selectedPublisherName = selectedConversationMeta
+          ? supportPublisherLabel(selectedConversationMeta)
+          : 'Publisher inbox'
+        const selectedPublisherEmail = selectedConversationMeta?.publisher?.email || selectedConversationMeta?.publisher?.username || ''
+        const showManagerThread = isManagerSupport && supportManagerPane === 'thread' && Boolean(selectedSupportId || supportConversation)
+        const clock = supportClockMs || Date.now()
+
+        const renderConversationRow = (
+          conversation: SupportConversationRecord,
+          options?: { active?: boolean; onSelect?: () => void },
+        ) => {
+          const latest = conversation.messages[conversation.messages.length - 1]
+          const waiting = isSupportWaiting(conversation)
+          return (
+            <button
+              key={conversation.id}
+              type="button"
+              className={`${styles.supportMessengerRecentItem} ${options?.active ? styles.supportMessengerInboxItemActive : ''}`}
+              onClick={options?.onSelect}
+            >
+              <span className={`${styles.supportMessengerAvatar} ${waiting ? styles.supportMessengerAvatarWaiting : ''}`} aria-hidden="true">
+                <CircleUserRound size={18} strokeWidth={2} />
+              </span>
+              <span className={styles.supportMessengerRecentCopy}>
+                <strong>
+                  {supportPublisherLabel(conversation)}
+                  {waiting ? <em>Needs reply</em> : null}
+                </strong>
+                <span>{latest?.body || 'No messages yet'}</span>
+              </span>
+              <time dateTime={latest?.createdAt || conversation.updatedAt}>
+                {formatSupportTime(latest?.createdAt || conversation.updatedAt, clock)}
+              </time>
+            </button>
+          )
+        }
+
+        return (
+          <div
+            className={`${styles.supportMessenger} ${isManagerSupport ? styles.supportMessengerManager : ''}`}
+            role="dialog"
+            aria-label={isManagerSupport ? 'Manager support desk' : 'Support messenger'}
+            aria-modal="false"
+          >
+            {supportMessengerTab === 'home' ? (
+              <div className={styles.supportMessengerHome}>
+                <div className={`${styles.supportMessengerHomeTop} ${isManagerSupport ? styles.supportMessengerHomeTopManager : ''}`}>
+                  <div className={styles.supportMessengerHomeBar}>
+                    <span className={styles.supportMessengerLogo} aria-hidden="true">a</span>
+                    <button type="button" className={styles.supportMessengerClose} aria-label="Close support" onClick={closeSupportMessenger}>
+                      <X size={18} strokeWidth={2.25} />
+                    </button>
+                  </div>
+                  <div className={styles.supportMessengerGreeting}>
+                    <p>
+                      {isManagerSupport
+                        ? (supportFirstName ? `Hi ${supportFirstName},` : 'Welcome back,')
+                        : <>Hi {supportFirstName || 'there'} <span aria-hidden="true">👋</span></>}
+                    </p>
+                    <h2>{isManagerSupport ? 'Your publisher inbox' : 'How can we help?'}</h2>
+                  </div>
+                  <button type="button" className={styles.supportMessengerActionCard} onClick={openSupportCompose}>
+                    <span>
+                      <strong>
+                        {isManagerSupport
+                          ? (waitingConversations.length ? 'Reply now' : 'Open publisher inbox')
+                          : 'Send us a message'}
+                      </strong>
+                      <span>
+                        {isManagerSupport
+                          ? (waitingConversations.length
+                            ? `${waitingConversations.length} conversation${waitingConversations.length === 1 ? '' : 's'} waiting`
+                            : 'All caught up — browse the inbox')
+                          : 'We typically reply in a few minutes'}
+                      </span>
+                    </span>
+                    <span className={styles.supportMessengerActionIcon} aria-hidden="true">
+                      {isManagerSupport ? (
+                        <MessageCircle size={22} strokeWidth={2.2} />
+                      ) : (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                          <path d="M3.4 11.2 20.2 3.7c.7-.3 1.4.4 1.1 1.1L13.8 21.6c-.3.8-1.4.7-1.6-.1l-1.8-7.1-7.1-1.8c-.8-.2-.9-1.3-.1-1.6Z" fill="currentColor" />
+                          <path d="m10.9 13.1 9.4-9.4" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" />
+                        </svg>
+                      )}
+                    </span>
                   </button>
                 </div>
-                <div className={styles.supportMessengerGreeting}>
-                  <p>Hi {supportFirstName} <span aria-hidden="true">👋</span></p>
-                  <h2>How can we help?</h2>
-                </div>
-                <button type="button" className={styles.supportMessengerActionCard} onClick={openSupportCompose}>
-                  <span>
-                    <strong>Send us a message</strong>
-                    <span>We typically reply in a few minutes</span>
-                  </span>
-                  <span className={styles.supportMessengerActionIcon} aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                      <path d="M3.4 11.2 20.2 3.7c.7-.3 1.4.4 1.1 1.1L13.8 21.6c-.3.8-1.4.7-1.6-.1l-1.8-7.1-7.1-1.8c-.8-.2-.9-1.3-.1-1.6Z" fill="currentColor" />
-                      <path d="m10.9 13.1 9.4-9.4" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" />
-                    </svg>
-                  </span>
-                </button>
-              </div>
-              <div className={styles.supportMessengerHomeBody} />
-            </div>
-          ) : (
-            <div className={styles.supportMessengerMessages}>
-              <header className={styles.supportMessengerMessagesHeader}>
-                <div>
-                  <strong>Messages</strong>
-                  <span>
-                    {userRole === 'MANAGER'
-                      ? (supportConversation?.publisher?.fullName || supportConversation?.publisher?.username || 'Publisher inbox')
-                      : (supportConversation?.manager?.fullName || 'John')}
-                  </span>
-                </div>
-                <button type="button" className={styles.supportMessengerCloseDark} aria-label="Close support" onClick={closeSupportMessenger}>
-                  <X size={18} strokeWidth={2.25} />
-                </button>
-              </header>
+                <div className={styles.supportMessengerHomeBody}>
+                  {isManagerSupport ? (
+                    <div className={styles.supportMessengerDesk}>
+                      <div className={styles.supportMessengerStats} aria-label="Support summary">
+                        <div>
+                          <strong>{openConversationCount}</strong>
+                          <span>Open</span>
+                        </div>
+                        <div className={waitingConversations.length ? styles.supportMessengerStatHot : undefined}>
+                          <strong>{waitingConversations.length}</strong>
+                          <span>Waiting</span>
+                        </div>
+                        <div>
+                          <strong>{orderedConversations.length}</strong>
+                          <span>Total</span>
+                        </div>
+                      </div>
 
-              {userRole === 'MANAGER' && (
-                <div className={styles.supportMessengerInbox} aria-label="Publisher conversations">
-                  {!supportLoading && !supportConversations.length ? (
-                    <p className={styles.supportMessengerEmpty}>No publisher messages yet.</p>
-                  ) : null}
-                  {supportConversations.map((conversation) => {
-                    const latest = conversation.messages[conversation.messages.length - 1]
-                    return (
-                      <button
-                        key={conversation.id}
-                        type="button"
-                        className={`${styles.supportMessengerInboxItem} ${selectedSupportId === conversation.id ? styles.supportMessengerInboxItemActive : ''}`}
-                        onClick={() => setSelectedSupportId(conversation.id)}
-                      >
-                        <strong>{conversation.publisher?.fullName || conversation.publisher?.username || 'Publisher'}</strong>
-                        <span>{latest?.body || 'No messages yet'}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+                      <div className={styles.supportMessengerRecent}>
+                        <div className={styles.supportMessengerRecentHead}>
+                          <strong>Priority inbox</strong>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSupportManagerPane('list')
+                              setSupportMessengerTab('messages')
+                            }}
+                          >
+                            View all
+                          </button>
+                        </div>
+                        {supportLoading && !recentConversations.length ? (
+                          <p className={styles.supportMessengerDeskHint}>Loading inbox…</p>
+                        ) : null}
+                        {!supportLoading && !recentConversations.length ? (
+                          <div className={styles.supportMessengerDeskEmpty}>
+                            <CircleUserRound size={22} aria-hidden="true" />
+                            <p>No publisher messages yet</p>
+                            <span>New publisher chats will show up here instantly.</span>
+                          </div>
+                        ) : null}
+                        <div className={styles.supportMessengerRecentList}>
+                          {recentConversations.map((conversation) => renderConversationRow(conversation, {
+                            onSelect: () => openManagerConversation(conversation.id),
+                          }))}
+                        </div>
+                      </div>
 
-              <div className={styles.supportMessengerThread} ref={supportPopupThreadRef}>
-                {supportLoading && !(supportConversation?.messages.length) ? (
-                  <p className={styles.supportMessengerEmpty}>Loading messages…</p>
-                ) : null}
-                {!supportLoading && !(supportConversation?.messages.length) ? (
-                  <div className={styles.supportMessengerWelcome}>
-                    <p>Send us a message</p>
-                    <p>We typically reply in a few minutes.</p>
-                  </div>
-                ) : null}
-                {supportConversation?.messages.map((message) => {
-                  const isMine = userId
-                    ? message.senderId === userId
-                    : (userRole === 'MANAGER' ? message.sender.role === 'MANAGER' : message.sender.role === 'PUBLISHER')
-                  return (
-                    <div
-                      key={message.id}
-                      className={`${styles.supportMessengerBubble} ${isMine ? styles.supportMessengerBubbleMine : styles.supportMessengerBubbleTheirs}`}
-                    >
-                      <p>{message.body}</p>
-                      <span>{new Date(message.createdAt).toLocaleString()}</span>
+                      <Link href="/support" className={styles.supportMessengerDeskLink} onClick={closeSupportMessenger}>
+                        Open full support desk
+                      </Link>
                     </div>
-                  )
-                })}
+                  ) : null}
+                </div>
               </div>
+            ) : (
+              <div className={styles.supportMessengerMessages}>
+                {isManagerSupport && !showManagerThread ? (
+                  <>
+                    <header className={styles.supportMessengerMessagesHeader}>
+                      <div>
+                        <strong>Inbox</strong>
+                        <span>
+                          {waitingConversations.length
+                            ? `${waitingConversations.length} waiting for reply`
+                            : `${orderedConversations.length} conversation${orderedConversations.length === 1 ? '' : 's'}`}
+                        </span>
+                      </div>
+                      <button type="button" className={styles.supportMessengerCloseDark} aria-label="Close support" onClick={closeSupportMessenger}>
+                        <X size={18} strokeWidth={2.25} />
+                      </button>
+                    </header>
+                    <div className={styles.supportMessengerInboxFull} aria-label="Publisher conversations">
+                      {supportLoading && !orderedConversations.length ? (
+                        <p className={styles.supportMessengerEmpty}>Loading inbox…</p>
+                      ) : null}
+                      {!supportLoading && !orderedConversations.length ? (
+                        <div className={styles.supportMessengerWelcome}>
+                          <p>Inbox is clear</p>
+                          <p>Publisher messages will appear here.</p>
+                        </div>
+                      ) : null}
+                      {orderedConversations.map((conversation) => renderConversationRow(conversation, {
+                        active: selectedSupportId === conversation.id,
+                        onSelect: () => openManagerConversation(conversation.id),
+                      }))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <header className={`${styles.supportMessengerMessagesHeader} ${isManagerSupport ? styles.supportMessengerThreadHeader : ''}`}>
+                      <div className={styles.supportMessengerThreadHeading}>
+                        {isManagerSupport ? (
+                          <button type="button" className={styles.supportMessengerBack} onClick={backToManagerInbox} aria-label="Back to inbox">
+                            ‹
+                          </button>
+                        ) : null}
+                        {isManagerSupport && selectedConversationMeta ? (
+                          <span className={styles.supportMessengerThreadAvatar} aria-hidden="true">
+                            <CircleUserRound size={16} strokeWidth={2} />
+                          </span>
+                        ) : null}
+                        <div>
+                          <strong>{isManagerSupport ? selectedPublisherName : 'Messages'}</strong>
+                          <span>
+                            {isManagerSupport
+                              ? (selectedPublisherEmail || 'Publisher conversation')
+                              : (supportConversation?.manager?.fullName || 'John')}
+                          </span>
+                        </div>
+                      </div>
+                      <button type="button" className={styles.supportMessengerCloseDark} aria-label="Close support" onClick={closeSupportMessenger}>
+                        <X size={18} strokeWidth={2.25} />
+                      </button>
+                    </header>
 
-              <form
-                className={styles.supportMessengerComposer}
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void sendSupportMessage()
+                    <div className={styles.supportMessengerThread} ref={supportPopupThreadRef}>
+                      {supportLoading && !(supportConversation?.messages.length) ? (
+                        <p className={styles.supportMessengerEmpty}>Loading messages…</p>
+                      ) : null}
+                      {!supportLoading && !(supportConversation?.messages.length) ? (
+                        <div className={styles.supportMessengerWelcome}>
+                          <p>{isManagerSupport ? 'No messages in this thread yet' : 'Send us a message'}</p>
+                          <p>
+                            {isManagerSupport
+                              ? 'Send the first reply to start helping this publisher.'
+                              : 'We typically reply in a few minutes.'}
+                          </p>
+                        </div>
+                      ) : null}
+                      {supportConversation?.messages.map((message) => {
+                        const isMine = userId
+                          ? message.senderId === userId
+                          : (userRole === 'MANAGER' ? message.sender.role === 'MANAGER' : message.sender.role === 'PUBLISHER')
+                        return (
+                          <div
+                            key={message.id}
+                            className={`${styles.supportMessengerBubble} ${isMine ? styles.supportMessengerBubbleMine : styles.supportMessengerBubbleTheirs}`}
+                          >
+                            <p>{message.body}</p>
+                            <span>{formatSupportTime(message.createdAt, clock)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <form
+                      className={styles.supportMessengerComposer}
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        void sendSupportMessage()
+                      }}
+                    >
+                      <textarea
+                        ref={supportComposerRef}
+                        value={supportDraft}
+                        onChange={(event) => setSupportDraft(event.target.value)}
+                        placeholder={isManagerSupport ? 'Reply to publisher…' : 'Message…'}
+                        rows={1}
+                        disabled={isManagerSupport && !selectedSupportId && !supportConversation}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault()
+                            void sendSupportMessage()
+                          }
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        className={styles.supportMessengerSend}
+                        aria-label="Send message"
+                        disabled={supportSending || !supportDraft.trim() || (isManagerSupport && !selectedSupportId && !supportConversation)}
+                      >
+                        <SendHorizontal size={18} strokeWidth={2.4} />
+                      </button>
+                    </form>
+                  </>
+                )}
+              </div>
+            )}
+
+            <nav className={styles.supportMessengerTabs} aria-label="Messenger spaces">
+              <button
+                type="button"
+                className={`${styles.supportMessengerTab} ${supportMessengerTab === 'home' ? styles.supportMessengerTabActive : ''}`}
+                onClick={() => setSupportMessengerTab('home')}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="5" stroke="currentColor" strokeWidth="1.85" />
+                  <path d="M8.2 13.1c1.05 1.35 2.35 2.05 3.8 2.05s2.75-.7 3.8-2.05" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" />
+                </svg>
+                <span>Home</span>
+              </button>
+              <button
+                type="button"
+                className={`${styles.supportMessengerTab} ${supportMessengerTab === 'messages' ? styles.supportMessengerTabActive : ''}`}
+                onClick={() => {
+                  if (isManagerSupport) setSupportManagerPane('list')
+                  setSupportMessengerTab('messages')
                 }}
               >
-                <textarea
-                  ref={supportComposerRef}
-                  value={supportDraft}
-                  onChange={(event) => setSupportDraft(event.target.value)}
-                  placeholder="Message…"
-                  rows={1}
-                  disabled={userRole === 'MANAGER' && !selectedSupportId && !supportConversation}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault()
-                      void sendSupportMessage()
-                    }
-                  }}
-                />
-                <button
-                  type="submit"
-                  className={styles.supportMessengerSend}
-                  aria-label="Send message"
-                  disabled={supportSending || !supportDraft.trim() || (userRole === 'MANAGER' && !selectedSupportId && !supportConversation)}
-                >
-                  <SendHorizontal size={18} strokeWidth={2.4} />
-                </button>
-              </form>
-            </div>
-          )}
-
-          <nav className={styles.supportMessengerTabs} aria-label="Messenger spaces">
-            <button
-              type="button"
-              className={`${styles.supportMessengerTab} ${supportMessengerTab === 'home' ? styles.supportMessengerTabActive : ''}`}
-              onClick={() => setSupportMessengerTab('home')}
-            >
-              {/* Affmine/Intercom Home = rounded square with smile */}
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <rect x="3.75" y="3.75" width="16.5" height="16.5" rx="5" stroke="currentColor" strokeWidth="1.85" />
-                <path d="M8.2 13.1c1.05 1.35 2.35 2.05 3.8 2.05s2.75-.7 3.8-2.05" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" />
-              </svg>
-              <span>Home</span>
-            </button>
-            <button
-              type="button"
-              className={`${styles.supportMessengerTab} ${supportMessengerTab === 'messages' ? styles.supportMessengerTabActive : ''}`}
-              onClick={() => setSupportMessengerTab('messages')}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M5 6.6A1.85 1.85 0 0 1 6.85 4.75h10.3A1.85 1.85 0 0 1 19 6.6v7.05a1.85 1.85 0 0 1-1.85 1.85H10.2L6.2 18.7c-.5.35-1.2-.02-1.2-.62V6.6Z" stroke="currentColor" strokeWidth="1.85" strokeLinejoin="round" />
-              </svg>
-              <span>Messages</span>
-            </button>
-          </nav>
-        </div>
-      )}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M5 6.6A1.85 1.85 0 0 1 6.85 4.75h10.3A1.85 1.85 0 0 1 19 6.6v7.05a1.85 1.85 0 0 1-1.85 1.85H10.2L6.2 18.7c-.5.35-1.2-.02-1.2-.62V6.6Z" stroke="currentColor" strokeWidth="1.85" strokeLinejoin="round" />
+                </svg>
+                <span>
+                  Messages
+                  {isManagerSupport && waitingConversations.length ? (
+                    <b className={styles.supportMessengerTabBadge}>{waitingConversations.length}</b>
+                  ) : null}
+                </span>
+              </button>
+            </nav>
+          </div>
+        )
+      })()}
 
       <button
         id="dashboard-support-chat"

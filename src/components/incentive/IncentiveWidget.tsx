@@ -71,32 +71,50 @@ export default function IncentiveWidget({ kind, toolId, seedOffers }: IncentiveW
   const [offerQuery, setOfferQuery] = useState('')
 
   useEffect(() => {
+    let cancelled = false
     const nextTool = loadTool(kind, toolId)
     setTool(nextTool)
 
-    const catalogAll = mergeOffers(seedOffers)
-    const activeIds = readJsonArray<string>(activeIncentiveOffersStorageKey)
-    const knownIds = new Set(catalogAll.map((offer) => offer.id))
-    const savedActive = activeIds.filter((id) => knownIds.has(id))
-    // If nothing is activated yet, show every real incentive offer in the catalog.
-    const activeSet = new Set(savedActive.length ? savedActive : catalogAll.map((offer) => offer.id))
-    const catalog = catalogAll.filter((offer) => activeSet.has(offer.id))
-    const selected = nextTool?.selectedOfferIds?.length
-      ? catalog.filter((offer) => nextTool.selectedOfferIds.includes(offer.id))
-      : catalog
-    const minPayout = Number(nextTool?.fields.minimumPayout || 0)
-    const filtered = minPayout > 0 ? selected.filter((offer) => offer.payout >= minPayout) : selected
+    const applyCatalog = (remoteOffers: SeedOffer[]) => {
+      const catalogAll = mergeOffers([...seedOffers, ...remoteOffers])
+      const activeIds = readJsonArray<string>(activeIncentiveOffersStorageKey)
+      const knownIds = new Set(catalogAll.map((offer) => offer.id))
+      const savedActive = activeIds.filter((id) => knownIds.has(id))
+      // Public API already returns incentiveActive offers; fall back to all when local list is empty.
+      const activeSet = new Set(savedActive.length ? savedActive : catalogAll.map((offer) => offer.id))
+      const catalog = catalogAll.filter((offer) => activeSet.has(offer.id))
+      const selected = nextTool?.selectedOfferIds?.length
+        ? catalog.filter((offer) => nextTool.selectedOfferIds.includes(offer.id))
+        : catalog
+      const minPayout = Number(nextTool?.fields.minimumPayout || 0)
+      const filtered = minPayout > 0 ? selected.filter((offer) => offer.payout >= minPayout) : selected
 
-    const maxDesktop = Number(nextTool?.fields.desktopMaxOffers || 0)
-    const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches
-    const mobileCap = nextTool?.fields.mobileMaxOffers
-    const maxMobile = mobileCap && mobileCap !== 'No limit' ? Number(mobileCap) : 0
-    const capped = isMobile
-      ? (maxMobile > 0 ? filtered.slice(0, maxMobile) : filtered)
-      : (maxDesktop > 0 ? filtered.slice(0, maxDesktop) : filtered)
+      const maxDesktop = Number(nextTool?.fields.desktopMaxOffers || 0)
+      const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches
+      const mobileCap = nextTool?.fields.mobileMaxOffers
+      const maxMobile = mobileCap && mobileCap !== 'No limit' ? Number(mobileCap) : 0
+      const capped = isMobile
+        ? (maxMobile > 0 ? filtered.slice(0, maxMobile) : filtered)
+        : (maxDesktop > 0 ? filtered.slice(0, maxDesktop) : filtered)
 
-    setOffers(capped)
-    setReady(true)
+      if (!cancelled) {
+        setOffers(capped)
+        setReady(true)
+      }
+    }
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/campaigns/public?placement=INCENTIVE', { cache: 'no-store' })
+        if (!response.ok) throw new Error('public_catalog_unavailable')
+        const payload = await response.json() as { offers?: SeedOffer[] }
+        applyCatalog(Array.isArray(payload.offers) ? payload.offers : [])
+      } catch {
+        applyCatalog([])
+      }
+    })()
+
+    return () => { cancelled = true }
   }, [kind, toolId, seedOffers])
 
   const required = Math.max(1, Number(tool?.fields.conversionsRequired || 1))

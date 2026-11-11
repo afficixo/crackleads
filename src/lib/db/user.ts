@@ -19,7 +19,7 @@ export async function ensurePublisherNumber(userId: string): Promise<number | nu
   })
   if (!existing) return null
   if (existing.publisherNumber != null) return existing.publisherNumber
-  if (existing.role !== 'PUBLISHER') return null
+  if (existing.role !== 'PUBLISHER' && existing.role !== 'MANAGER') return null
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const publisherNumber = await allocatePublisherNumber()
@@ -90,7 +90,7 @@ export async function createUserSafe(initialData: Prisma.UserUncheckedCreateInpu
 
       if (
         data.publisherNumber == null
-        && data.role !== 'MANAGER'
+        && (data.role === 'PUBLISHER' || data.role === 'MANAGER')
         && (existing.size === 0 || existing.has('publisherNumber'))
       ) {
         data.publisherNumber = await allocatePublisherNumber()

@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: getCorsHeaders(origin) })
   }
 
-  const publisherNumber = user.role === 'PUBLISHER'
+  const publisherNumber = (user.role === 'PUBLISHER' || user.role === 'MANAGER')
     ? (user.publisherNumber ?? await ensurePublisherNumber(user.id))
     : user.publisherNumber
   const userId = String(publisherNumber ?? user.id)

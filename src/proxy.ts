@@ -1,9 +1,34 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getCookieValue } from '@/lib/utils/helpers'
+import { getTrackingDomainHost, isTrackingPath } from '@/lib/tracking'
 
+/**
+ * Auth gate + publisher tracking rewrites.
+ * Tracking public links: /{publisherId}/{offerId}/ → /api/track/...
+ * (main offer stays hidden; postback map s1=publisher, s2=offer, s3=sub1, s4=sub2)
+ */
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
+
+  const trackingParts = isTrackingPath(path)
+  if (trackingParts) {
+    const trackingHost = getTrackingDomainHost()
+    const requestHost = request.headers.get('host')?.toLowerCase() || ''
+    const onTrackingHost = Boolean(trackingHost) && (
+      requestHost === trackingHost
+      || requestHost.startsWith(`${trackingHost}:`)
+    )
+    const publisherLooksLikeId = /^[0-9]+$/.test(trackingParts.publisherId)
+
+    // Only rewrite on the configured tracking host, or numeric /{pub}/{offer}/ on app host.
+    if (onTrackingHost || publisherLooksLikeId) {
+      const rewriteUrl = request.nextUrl.clone()
+      rewriteUrl.pathname = `/api/track/${encodeURIComponent(trackingParts.publisherId)}/${encodeURIComponent(trackingParts.offerId)}`
+      return NextResponse.rewrite(rewriteUrl)
+    }
+  }
+
   const isPublicPage = path === '/' || path === '/login' || path === '/signup'
   const isApiRoute = path.startsWith('/api/')
   if (!isPublicPage && !isApiRoute && !getCookieValue(request.headers.get('cookie') || '', 'auth-token')) {

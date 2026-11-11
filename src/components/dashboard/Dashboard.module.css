@@ -3634,27 +3634,18 @@
   font-size: 13px;
 }
 
-.trackingBadgeSuccess,
-.trackingBadgePrimary {
+.trackingBadgeSuccess {
   display: inline-flex;
   align-items: center;
   height: 17px;
   margin-bottom: 3px;
   border-radius: 3px;
   padding: 0 6px;
+  background: #dff0d8;
+  color: #3c763d;
   font-size: 13px;
   font-weight: 600;
   line-height: 13px;
-}
-
-.trackingBadgeSuccess {
-  background: #dff0d8;
-  color: #3c763d;
-}
-
-.trackingBadgePrimary {
-  background: #d9edf7;
-  color: #31708f;
 }
 
 .trackingLeft textarea,
@@ -4418,7 +4409,7 @@
 .campaignTableManagerIncentive th:nth-child(4),
 .campaignTableManagerIncentive td:nth-child(4) { width: auto; }
 .campaignTableManagerIncentive th:nth-child(9),
-.campaignTableManagerIncentive td:nth-child(9) { width: 86px; }
+.campaignTableManagerIncentive td:nth-child(9) { width: 128px; }
 
 .incentiveOffersHint {
   margin: 0 0 12px;
@@ -4494,6 +4485,18 @@
 .incentiveCheckboxInput:disabled + .incentiveCheckboxLabel {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.incentivePausedStatus {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d9534f;
+  border-radius: 2px;
+  background: #d9534f;
+  color: #fff;
 }
 
 .incentiveOfferActiveRow td {
@@ -5757,6 +5760,13 @@ a.offerAction {
 /* Affmine Intercom messenger: exact shell 400×704, radius 24, bottom 84 / right 35 */
 .supportMessenger {
   --support-action: #2e6bff;
+  --support-ink: #0f172a;
+  --support-muted: #64748b;
+  --support-line: #e6ebf2;
+  --support-panel: #f4f7fb;
+  --support-wait: #d97706;
+  --support-wait-soft: #fff7ed;
+  --support-brand: #5ff442;
   position: fixed;
   right: 35px;
   bottom: 84px;
@@ -5773,6 +5783,32 @@ a.offerAction {
   box-shadow: rgba(9, 14, 21, 0.16) 0 5px 40px 0;
   color: #091e42;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.supportMessengerManager {
+  --support-action: #0781ba;
+  --support-ink: #37363e;
+  --support-muted: #58666e;
+  --support-line: #e8ecef;
+  --support-panel: #f7f8f9;
+  --support-wait: #31708f;
+  --support-wait-soft: #d9edf7;
+  background: #fff;
+  box-shadow: rgba(9, 14, 21, 0.16) 0 5px 40px 0;
+  color: var(--support-ink);
+  font-family: Roboto, "Segoe UI", Helvetica, Arial, sans-serif;
+  animation: supportMessengerIn 180ms ease-out;
+}
+
+@keyframes supportMessengerIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .supportMessengerHome {
@@ -5928,11 +5964,389 @@ a.offerAction {
   background: #fff;
 }
 
+.supportMessengerHomeTopManager {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 40%, #ffffff 94%),
+    linear-gradient(180deg, #3d464d 0%, #455057 58%, #8b949b 100%);
+}
+
+.supportMessengerManager .supportMessengerHomeBar {
+  margin-bottom: 28px;
+}
+
+.supportMessengerManager .supportMessengerLogo {
+  box-shadow:
+    0 0 0 2px rgba(95, 244, 66, 0.35),
+    0 1px 3px rgba(0, 0, 0, 0.22);
+}
+
+.supportMessengerManager .supportMessengerGreeting {
+  margin-bottom: 22px;
+}
+
+.supportMessengerManager .supportMessengerGreeting p {
+  margin-bottom: 4px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+}
+
+.supportMessengerManager .supportMessengerGreeting h2 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.supportMessengerManager .supportMessengerActionCard {
+  border: 1px solid #e8ecef;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(61, 70, 77, 0.08);
+  color: #37363e;
+}
+
+.supportMessengerManager .supportMessengerActionCard:hover {
+  border-color: #c5d0d6;
+  box-shadow: 0 2px 8px rgba(61, 70, 77, 0.1);
+}
+
+.supportMessengerManager .supportMessengerActionCard strong {
+  color: #37363e;
+  font-weight: 700;
+}
+
+.supportMessengerManager .supportMessengerActionCard > span:first-child > span {
+  color: #58666e;
+}
+
+.supportMessengerManager .supportMessengerActionIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #eff6fa;
+  color: #0781ba;
+}
+
+.supportMessengerManager .supportMessengerHomeBody {
+  background: #fff;
+}
+
+.supportMessengerManager .supportMessengerCloseDark {
+  color: #65727a;
+}
+
+.supportMessengerManager .supportMessengerCloseDark:hover {
+  background: #f1f2f4;
+  color: #37363e;
+}
+
+.supportMessengerManager .supportMessengerMessagesHeader {
+  border-bottom-color: #ebecf0;
+  background: #fff;
+  padding: 14px 16px;
+}
+
+.supportMessengerManager .supportMessengerBack {
+  background: #e8ecef;
+  color: #48535b;
+}
+
+.supportMessengerManager .supportMessengerBack:hover {
+  background: #dfe4e7;
+  color: #0781ba;
+}
+
+.supportMessengerManager .supportMessengerDeskLink {
+  border: 1px solid #0781ba;
+  border-radius: 4px;
+  background: #0781ba;
+  color: #fff;
+  box-shadow: none;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.supportMessengerManager .supportMessengerDeskLink:hover {
+  border-color: #086e9e;
+  background: #086e9e;
+  color: #fff;
+}
+
+.supportMessengerManager .supportMessengerTab {
+  position: relative;
+}
+
+.supportMessengerManager .supportMessengerTabActive {
+  color: #0781ba;
+}
+
+.supportMessengerManager .supportMessengerTabActive::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 18%;
+  right: 18%;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: #5ff442;
+}
+
+.supportMessengerDesk {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 16px 16px;
+}
+
+.supportMessengerStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.supportMessengerStats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--support-line);
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: #fff;
+}
+
+.supportMessengerStatHot {
+  border-color: #bce8f1 !important;
+  background: #d9edf7 !important;
+}
+
+.supportMessengerStatHot strong {
+  color: var(--support-wait);
+}
+
+.supportMessengerStats strong {
+  color: var(--support-ink);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.supportMessengerStats span {
+  color: var(--support-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.supportMessengerRecent {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.supportMessengerRecentHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.supportMessengerRecentHead strong {
+  color: var(--support-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.supportMessengerRecentHead button {
+  border: 0;
+  background: transparent;
+  color: var(--support-action);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.supportMessengerRecentHead button:hover {
+  color: #086e9e;
+  text-decoration: underline;
+}
+
+.supportMessengerRecentList {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+
+.supportMessengerRecentItem,
+.supportMessengerInboxItem {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--support-line);
+  border-radius: 8px;
+  padding: 11px;
+  background: #fff;
+  color: var(--support-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.supportMessengerRecentItem:hover,
+.supportMessengerInboxItem:hover {
+  border-color: #cfd6db;
+  background: #f7f8f9;
+}
+
+.supportMessengerInboxItemActive {
+  border-color: #c5d0d6;
+  background: #f3f6f8;
+  box-shadow: inset 3px 0 0 #3d464d;
+}
+
+.supportMessengerAvatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid #dfe4e7;
+  background: #eef1f3;
+  color: #58666e;
+}
+
+.supportMessengerAvatar svg {
+  display: block;
+}
+
+.supportMessengerAvatarWaiting {
+  border-color: #3d464d;
+  background: #3d464d;
+  color: #fff;
+}
+
+.supportMessengerRecentCopy,
+.supportMessengerInboxCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.supportMessengerRecentCopy strong,
+.supportMessengerInboxCopy strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--support-ink);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.supportMessengerRecentCopy strong em,
+.supportMessengerInboxCopy strong em {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  border-radius: 3px;
+  padding: 1px 6px;
+  background: var(--support-wait-soft);
+  color: var(--support-wait);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.supportMessengerRecentCopy span,
+.supportMessengerInboxCopy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--support-muted);
+  font-size: 12px;
+}
+
+.supportMessengerRecentItem time,
+.supportMessengerInboxItem time {
+  color: #65727a;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.supportMessengerDeskHint,
+.supportMessengerDeskEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed #dfe4e7;
+  border-radius: 8px;
+  padding: 24px 16px;
+  background: #f7f8f9;
+  color: var(--support-muted);
+  text-align: center;
+}
+
+.supportMessengerDeskEmpty p {
+  margin: 0;
+  color: var(--support-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.supportMessengerDeskEmpty span {
+  max-width: 220px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.supportMessengerDeskLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--support-line);
+  border-radius: 4px;
+  padding: 12px 14px;
+  background: #fff;
+  color: var(--support-ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.supportMessengerDeskLink:hover {
+  border-color: #0781ba;
+  background: #f7f8f9;
+  color: var(--support-action);
+}
+
 .supportMessengerMessages {
   display: flex;
   min-height: 0;
   flex: 1;
   flex-direction: column;
+  background: #fff;
+}
+
+.supportMessengerManager .supportMessengerMessages {
   background: #fff;
 }
 
@@ -5942,27 +6356,29 @@ a.offerAction {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid #ebecf0;
+  border-bottom: 1px solid var(--support-line);
   padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
 }
 
 .supportMessengerMessagesHeader strong {
   display: block;
-  color: #172b4d;
+  color: var(--support-ink);
   font-size: 16px;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .supportMessengerMessagesHeader span {
   display: block;
   margin-top: 2px;
-  color: #6b778c;
+  color: var(--support-muted);
   font-size: 12px;
 }
 
 .supportMessengerInbox {
   display: flex;
-  max-height: 132px;
+  max-height: 168px;
   flex-shrink: 0;
   flex-direction: column;
   gap: 6px;
@@ -5972,37 +6388,163 @@ a.offerAction {
   background: #f7f8f9;
 }
 
-.supportMessengerInboxItem {
+.supportMessengerManager .supportMessengerInbox {
+  max-height: 188px;
+}
+
+.supportMessengerInboxFull {
   display: flex;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
-  gap: 2px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 9px 10px;
-  background: #fff;
-  color: #6b778c;
-  font: inherit;
-  text-align: left;
+  gap: 8px;
+  overflow: auto;
+  padding: 12px;
+  background: var(--support-panel);
+}
+
+.supportMessengerThreadHeader {
+  gap: 10px;
+}
+
+.supportMessengerThreadHeading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.supportMessengerBack {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: #e6eef5;
+  color: var(--support-ink);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
   cursor: pointer;
 }
 
-.supportMessengerInboxItem strong {
-  color: #172b4d;
-  font-size: 12px;
+.supportMessengerBack:hover {
+  background: #d9e8f2;
+  color: var(--support-action);
 }
 
-.supportMessengerInboxItem span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #8993a4;
-  font-size: 11px;
+.supportMessengerManager .supportMessengerThread {
+  background: #f7f8f9;
+  gap: 8px;
+  padding: 14px 16px;
 }
 
-.supportMessengerInboxItemActive,
-.supportMessengerInboxItem:hover {
+.supportMessengerManager .supportMessengerBubble {
+  border-radius: 12px;
+  padding: 9px 11px;
+  font-size: 13px;
+}
+
+.supportMessengerManager .supportMessengerBubbleMine {
+  background: #0781ba;
+  box-shadow: none;
+}
+
+.supportMessengerManager .supportMessengerBubbleTheirs {
+  border-color: #ebecf0;
+  background: #fff;
+  color: #37363e;
+  box-shadow: none;
+}
+
+.supportMessengerManager .supportMessengerBubbleMine span,
+.supportMessengerManager .supportMessengerBubbleTheirs span {
+  opacity: 0.7;
+  font-size: 10px;
+}
+
+.supportMessengerManager .supportMessengerComposer {
+  border-top-color: #ebecf0;
+  background: #fff;
+  padding: 10px 12px 12px;
+}
+
+.supportMessengerManager .supportMessengerComposer textarea {
   border-color: #dfe1e6;
-  background: #eef2ff;
+  border-radius: 8px;
+  background: #fff;
+  min-height: 38px;
+  font-size: 13px;
+}
+
+.supportMessengerManager .supportMessengerComposer textarea:focus {
+  border-color: #0781ba;
+  outline: 2px solid rgba(7, 129, 186, 0.14);
+  background: #fff;
+}
+
+.supportMessengerManager .supportMessengerSend {
+  width: 38px;
+  height: 38px;
+  background: #0781ba;
+  box-shadow: none;
+  transition: background-color 140ms ease;
+}
+
+.supportMessengerManager .supportMessengerSend:hover:not(:disabled) {
+  background: #086e9e;
+  filter: none;
+  box-shadow: none;
+}
+
+.supportMessengerManager .supportMessengerTabs {
+  border-top-color: #e8eaed;
+  background: #fff;
+}
+
+.supportMessengerThreadAvatar {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid #dfe4e7;
+  background: #eef1f3;
+  color: #58666e;
+}
+
+.supportMessengerThreadAvatar svg {
+  display: block;
+}
+
+.supportMessengerManager .supportMessengerRecentList,
+.supportMessengerManager .supportMessengerInboxFull,
+.supportMessengerManager .supportMessengerThread {
+  scrollbar-width: thin;
+  scrollbar-color: #c5d0d6 transparent;
+}
+
+.supportMessengerTab span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.supportMessengerTabBadge {
+  display: inline-grid;
+  min-width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0 5px;
+  background: #0781ba;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .supportMessengerThread {
