@@ -71,7 +71,7 @@ model User {
   conversionLeads         ConversionLead[]
   telegramNotification    TelegramNotification?
   ownedSupportConversations SupportConversation[] @relation("SupportConversationManager")
-  publisherSupportConversation SupportConversation? @relation("SupportConversationPublisher")
+  publisherSupportConversations SupportConversation[] @relation("SupportConversationPublisher")
   sentSupportMessages      SupportMessage[] @relation("SupportMessageSender")
   
   @@map("users")
@@ -634,15 +634,17 @@ model TelegramNotification {
 
 model SupportConversation {
   id          String           @id @default(cuid())
-  publisherId String           @unique
+  publisherId String
   publisher   User             @relation("SupportConversationPublisher", fields: [publisherId], references: [id], onDelete: Cascade)
   managerId   String?
   manager     User?            @relation("SupportConversationManager", fields: [managerId], references: [id], onDelete: SetNull)
+  subject     String?
   status      SupportStatus    @default(OPEN)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   messages    SupportMessage[]
 
+  @@index([publisherId, updatedAt])
   @@index([status, updatedAt])
   @@index([managerId, updatedAt])
   @@map("support_conversations")

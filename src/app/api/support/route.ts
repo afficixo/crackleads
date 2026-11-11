@@ -28,6 +28,7 @@ async function assignManagerId() {
 function serializeConversation(conversation: {
   id: string
   status: string
+  subject?: string | null
   createdAt: Date
   updatedAt: Date
   publisherId: string
@@ -42,9 +43,14 @@ function serializeConversation(conversation: {
     sender: { id: string; username: string; role: string; fullName: string | null }
   }>
 }) {
+  const firstBody = conversation.messages[0]?.body?.trim() || ''
+  const derivedSubject = firstBody
+    ? firstBody.slice(0, 48) + (firstBody.length > 48 ? '…' : '')
+    : 'Conversation'
   return {
     id: conversation.id,
     status: conversation.status,
+    subject: conversation.subject?.trim() || derivedSubject,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
     publisherId: conversation.publisherId,
@@ -135,8 +141,31 @@ export async function GET(request: Request) {
       }, { headers: getCorsHeaders(origin) })
     }
 
-    const conversation = await prisma.supportConversation.findUnique({
+    const url = new URL(request.url)
+    const conversationId = url.searchParams.get('conversationId')
+
+    if (conversationId) {
+      const conversation = await prisma.supportConversation.findFirst({
+        where: { id: conversationId, publisherId: user.id },
+        include: {
+          publisher: { select: { id: true, username: true, fullName: true, email: true } },
+          manager: { select: { id: true, username: true, fullName: true } },
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            include: messageInclude,
+          },
+        },
+      })
+      if (!conversation) {
+        return NextResponse.json({ error: 'Conversation not found' }, { status: 404, headers: getCorsHeaders(origin) })
+      }
+      return NextResponse.json({ conversation: serializeConversation(conversation) }, { headers: getCorsHeaders(origin) })
+    }
+
+    const conversations = await prisma.supportConversation.findMany({
       where: { publisherId: user.id },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
       include: {
         publisher: { select: { id: true, username: true, fullName: true, email: true } },
         manager: { select: { id: true, username: true, fullName: true } },
@@ -148,7 +177,8 @@ export async function GET(request: Request) {
     })
 
     return NextResponse.json({
-      conversation: conversation ? serializeConversation(conversation) : null,
+      conversations: conversations.map((item) => serializeConversation(item)),
+      conversation: conversations[0] ? serializeConversation(conversations[0]) : null,
     }, { headers: getCorsHeaders(origin) })
   } catch (error) {
     console.error('Load support failed:', error)
@@ -211,52 +241,66 @@ export async function POST(request: Request) {
     }
 
     const managerId = await assignManagerId()
-    const existing = await prisma.supportConversation.findUnique({ where: { publisherId: user.id } })
 
-    const conversation = existing
-      ? await prisma.supportConversation.update({
-          where: { id: existing.id },
-          data: {
-            status: 'OPEN',
-            managerId: existing.managerId || managerId,
-            updatedAt: new Date(),
-            messages: {
-              create: {
-                senderId: user.id,
-                body: messageBody,
-              },
+    if (conversationId && !body?.newConversation) {
+      const existing = await prisma.supportConversation.findFirst({
+        where: { id: conversationId, publisherId: user.id },
+      })
+      if (!existing) {
+        return NextResponse.json({ error: 'Conversation not found' }, { status: 404, headers: getCorsHeaders(origin) })
+      }
+
+      const conversation = await prisma.supportConversation.update({
+        where: { id: existing.id },
+        data: {
+          status: 'OPEN',
+          managerId: existing.managerId || managerId,
+          updatedAt: new Date(),
+          messages: {
+            create: {
+              senderId: user.id,
+              body: messageBody,
             },
           },
-          include: {
-            publisher: { select: { id: true, username: true, fullName: true, email: true } },
-            manager: { select: { id: true, username: true, fullName: true } },
-            messages: {
-              orderBy: { createdAt: 'asc' },
-              include: messageInclude,
-            },
+        },
+        include: {
+          publisher: { select: { id: true, username: true, fullName: true, email: true } },
+          manager: { select: { id: true, username: true, fullName: true } },
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            include: messageInclude,
           },
-        })
-      : await prisma.supportConversation.create({
-          data: {
-            publisherId: user.id,
-            managerId,
-            status: 'OPEN',
-            messages: {
-              create: {
-                senderId: user.id,
-                body: messageBody,
-              },
-            },
+        },
+      })
+
+      return NextResponse.json({ conversation: serializeConversation(conversation) }, { headers: getCorsHeaders(origin) })
+    }
+
+    const subjectRaw = typeof body?.subject === 'string' ? body.subject.trim().slice(0, 80) : ''
+    const subject = subjectRaw || (messageBody.slice(0, 48) + (messageBody.length > 48 ? '…' : ''))
+
+    const conversation = await prisma.supportConversation.create({
+      data: {
+        publisherId: user.id,
+        managerId,
+        ...(subject ? { subject } : {}),
+        status: 'OPEN',
+        messages: {
+          create: {
+            senderId: user.id,
+            body: messageBody,
           },
-          include: {
-            publisher: { select: { id: true, username: true, fullName: true, email: true } },
-            manager: { select: { id: true, username: true, fullName: true } },
-            messages: {
-              orderBy: { createdAt: 'asc' },
-              include: messageInclude,
-            },
-          },
-        })
+        },
+      },
+      include: {
+        publisher: { select: { id: true, username: true, fullName: true, email: true } },
+        manager: { select: { id: true, username: true, fullName: true } },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: messageInclude,
+        },
+      },
+    })
 
     return NextResponse.json({ conversation: serializeConversation(conversation) }, { status: 201, headers: getCorsHeaders(origin) })
   } catch (error) {

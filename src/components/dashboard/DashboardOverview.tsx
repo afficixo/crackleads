@@ -74,6 +74,7 @@ import {
   getTrackingDomainOrigin,
 } from '@/lib/tracking'
 import { PUBLISHER_POSTBACK_URL_EXAMPLE } from '@/lib/postback-tokens'
+import ReportDateRangePicker from './ReportDateRangePicker'
 import styles from './Dashboard.module.css'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
@@ -740,6 +741,7 @@ type SupportMessageRecord = {
 type SupportConversationRecord = {
   id: string
   status: string
+  subject?: string | null
   createdAt: string
   updatedAt: string
   publisherId: string
@@ -897,7 +899,27 @@ function formatSupportTime(value: string, nowMs = Date.now()) {
   if (minutes < 60) return `${minutes}m`
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h`
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(date)
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 5) return `${weeks}w`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months}mo`
+  const years = Math.floor(days / 365)
+  return `${Math.max(1, years)}y`
+}
+
+function supportConversationTitle(conversation: SupportConversationRecord) {
+  if (conversation.subject?.trim()) return conversation.subject.trim()
+  const first = conversation.messages[0]?.body?.trim()
+  if (first) return first.length > 48 ? `${first.slice(0, 48)}…` : first
+  return 'Conversation'
+}
+
+function supportConversationPreview(conversation: SupportConversationRecord) {
+  const latest = conversation.messages[conversation.messages.length - 1]
+  const body = latest?.body?.trim() || 'No messages yet'
+  return body.length > 64 ? `${body.slice(0, 64)}…` : body
 }
 
 function supportPublisherLabel(conversation: SupportConversationRecord) {
@@ -965,7 +987,6 @@ export default function DashboardOverview() {
   const [reportStartDate, setReportStartDate] = useState(() => {
     const start = new Date()
     start.setUTCHours(12, 0, 0, 0)
-    start.setUTCDate(start.getUTCDate() - 6)
     return start.toISOString().slice(0, 10)
   })
   const [reportEndDate, setReportEndDate] = useState(() => {
@@ -976,11 +997,12 @@ export default function DashboardOverview() {
   const [reportRange, setReportRange] = useState(() => {
     const end = new Date()
     end.setUTCHours(12, 0, 0, 0)
-    const start = new Date(end)
-    start.setUTCDate(start.getUTCDate() - 6)
-    return `${formatReportDateLabel(start.toISOString().slice(0, 10))} - ${formatReportDateLabel(end.toISOString().slice(0, 10))}`
+    const iso = end.toISOString().slice(0, 10)
+    return `${formatReportDateLabel(iso)} - ${formatReportDateLabel(iso)}`
   })
   const [showReportDates, setShowReportDates] = useState(false)
+  const [reportPresetLabel, setReportPresetLabel] = useState('Today')
+  const reportRangeAnchorRef = useRef<HTMLInputElement>(null)
   const [pageSearch, setPageSearch] = useState('')
   const [postbackEnabled, setPostbackEnabled] = useState(true)
   const [postbackUrl, setPostbackUrl] = useState('')
@@ -1034,6 +1056,7 @@ export default function DashboardOverview() {
   const [supportMessengerOpen, setSupportMessengerOpen] = useState(false)
   const [supportMessengerTab, setSupportMessengerTab] = useState<'home' | 'messages'>('home')
   const [supportManagerPane, setSupportManagerPane] = useState<'list' | 'thread'>('list')
+  const [supportComposerNew, setSupportComposerNew] = useState(false)
   const [supportClockMs, setSupportClockMs] = useState(0)
   const supportThreadRef = useRef<HTMLDivElement>(null)
   const supportPopupThreadRef = useRef<HTMLDivElement>(null)
@@ -1083,12 +1106,14 @@ export default function DashboardOverview() {
     setMobileNavOpen(false)
     setSupportMessengerTab('home')
     setSupportManagerPane('list')
+    setSupportComposerNew(false)
     setSupportMessengerOpen(true)
   }
   const closeSupportMessenger = () => {
     setSupportMessengerOpen(false)
     setSupportMessengerTab('home')
     setSupportManagerPane('list')
+    setSupportComposerNew(false)
   }
   const openSupportCompose = () => {
     if (userRole === 'MANAGER') {
@@ -1099,9 +1124,17 @@ export default function DashboardOverview() {
       if (nextId) {
         setSelectedSupportId(nextId)
         setSupportManagerPane('thread')
+        setSupportComposerNew(false)
       } else {
         setSupportManagerPane('list')
+        setSupportComposerNew(false)
       }
+    } else {
+      // Affmine Intercom: "Send us a message" starts a new conversation composer.
+      setSelectedSupportId(null)
+      setSupportConversation(null)
+      setSupportComposerNew(true)
+      setSupportManagerPane('thread')
     }
     setSupportMessengerTab('messages')
     window.setTimeout(() => supportComposerRef.current?.focus(), 80)
@@ -1109,11 +1142,19 @@ export default function DashboardOverview() {
   const openManagerConversation = (conversationId: string) => {
     setSelectedSupportId(conversationId)
     setSupportManagerPane('thread')
+    setSupportComposerNew(false)
     setSupportMessengerTab('messages')
     window.setTimeout(() => supportComposerRef.current?.focus(), 80)
   }
+  const openPublisherConversation = (conversationId: string) => {
+    setSelectedSupportId(conversationId)
+    setSupportComposerNew(false)
+    setSupportManagerPane('thread')
+    setSupportMessengerTab('messages')
+  }
   const backToManagerInbox = () => {
     setSupportManagerPane('list')
+    setSupportComposerNew(false)
   }
   const [dismissingNoticeId, setDismissingNoticeId] = useState<string | null>(null)
   const [offerApplications, setOfferApplications] = useState<OfferApplicationRecord[]>([])
@@ -1581,7 +1622,9 @@ export default function DashboardOverview() {
     if ((!isSupportPage && !supportMessengerOpen) || !userRole) return
     let active = true
     setSupportLoading(true)
-    const query = userRole === 'MANAGER' && selectedSupportId ? `?conversationId=${encodeURIComponent(selectedSupportId)}` : ''
+    const query = selectedSupportId && (userRole === 'MANAGER' || userRole === 'PUBLISHER')
+      ? `?conversationId=${encodeURIComponent(selectedSupportId)}`
+      : ''
     fetch(`/api/support${query}`, { credentials: 'include', cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) return
@@ -1599,6 +1642,17 @@ export default function DashboardOverview() {
               setSelectedSupportId(data.conversations[0].id)
             }
           }
+        } else if (selectedSupportId && data.conversation) {
+          setSupportConversation(data.conversation)
+          setSupportConversations((current) => {
+            const without = current.filter((item) => item.id !== data.conversation!.id)
+            return sortSupportConversations([data.conversation!, ...without])
+          })
+        } else if (Array.isArray(data.conversations)) {
+          setSupportConversations(data.conversations)
+          if (!supportComposerNew) {
+            setSupportConversation(data.conversations[0] ?? null)
+          }
         } else {
           setSupportConversation(data.conversation ?? null)
         }
@@ -1610,7 +1664,7 @@ export default function DashboardOverview() {
         if (active) setSupportLoading(false)
       })
     return () => { active = false }
-  }, [isSupportPage, supportMessengerOpen, userRole, selectedSupportId])
+  }, [isSupportPage, supportMessengerOpen, userRole, selectedSupportId, supportComposerNew])
 
   useEffect(() => {
     const thread = supportPopupThreadRef.current || supportThreadRef.current
@@ -2143,31 +2197,16 @@ export default function DashboardOverview() {
     }))
   }
 
-  const applyReportDates = (start = reportStartDate, end = reportEndDate) => {
+  const applyReportDates = (
+    start = reportStartDate,
+    end = reportEndDate,
+    presetLabel = reportPresetLabel,
+  ) => {
     setReportStartDate(start)
     setReportEndDate(end)
+    setReportPresetLabel(presetLabel)
     setReportRange(`${formatReportDateLabel(start)} - ${formatReportDateLabel(end)}`)
     setShowReportDates(false)
-  }
-
-  const applyReportPreset = (preset: (typeof reportRangePresets)[number]) => {
-    const end = new Date()
-    end.setHours(12, 0, 0, 0)
-    const start = new Date(end)
-
-    if (preset.days === 'month') {
-      start.setDate(1)
-    } else if (preset.days === 'last-month') {
-      start.setMonth(start.getMonth() - 1, 1)
-      end.setDate(0)
-    } else if (preset.label === 'Yesterday') {
-      start.setDate(start.getDate() - 1)
-      end.setDate(end.getDate() - 1)
-    } else {
-      start.setDate(start.getDate() - preset.days)
-    }
-
-    applyReportDates(toDateInputValue(start), toDateInputValue(end))
   }
 
   const enteringFeaturedClass = campaignMotion === 'left'
@@ -2524,7 +2563,8 @@ export default function DashboardOverview() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           body: supportDraft.trim(),
-          ...(userRole === 'MANAGER' && selectedSupportId ? { conversationId: selectedSupportId } : {}),
+          ...(selectedSupportId && !supportComposerNew ? { conversationId: selectedSupportId } : {}),
+          ...(userRole === 'PUBLISHER' && supportComposerNew ? { newConversation: true } : {}),
         }),
       })
       const data = await response.json() as { conversation?: SupportConversationRecord; error?: string }
@@ -2533,9 +2573,11 @@ export default function DashboardOverview() {
       }
       setSupportConversation(data.conversation)
       setSelectedSupportId(data.conversation.id)
+      setSupportComposerNew(false)
+      setSupportManagerPane('thread')
       setSupportConversations((current) => {
         const without = current.filter((item) => item.id !== data.conversation!.id)
-        return [data.conversation!, ...without]
+        return sortSupportConversations([data.conversation!, ...without])
       })
       setSupportDraft('')
     } catch (supportError) {
@@ -2939,6 +2981,7 @@ export default function DashboardOverview() {
               {reportPage && (
                 <div className={styles.reportDatePicker}>
                   <input
+                    ref={reportRangeAnchorRef}
                     type="text"
                     readOnly
                     id="reportrange"
@@ -2949,21 +2992,15 @@ export default function DashboardOverview() {
                     onClick={() => setShowReportDates((open) => !open)}
                   />
                   {showReportDates && (
-                    <div className={styles.reportDatePopover}>
-                      <ul className={styles.reportDatePresets}>
-                        {reportRangePresets.map((preset) => (
-                          <li key={preset.label}>
-                            <button type="button" onClick={() => applyReportPreset(preset)}>{preset.label}</button>
-                          </li>
-                        ))}
-                        <li><button type="button" className={styles.reportDateCustomActive}>Custom Range</button></li>
-                      </ul>
-                      <div className={styles.reportDateCustom}>
-                        <label>From<input type="date" value={reportStartDate} onChange={(event) => setReportStartDate(event.target.value)} /></label>
-                        <label>To<input type="date" value={reportEndDate} min={reportStartDate} onChange={(event) => setReportEndDate(event.target.value)} /></label>
-                        <button type="button" className={styles.pagePrimaryButton} onClick={() => applyReportDates()}>Apply</button>
-                      </div>
-                    </div>
+                    <ReportDateRangePicker
+                      startDate={reportStartDate}
+                      endDate={reportEndDate}
+                      presetLabel={reportPresetLabel}
+                      presets={reportRangePresets}
+                      anchorRef={reportRangeAnchorRef}
+                      onApply={applyReportDates}
+                      onCancel={() => setShowReportDates(false)}
+                    />
                   )}
                 </div>
               )}
@@ -5512,6 +5549,8 @@ export default function DashboardOverview() {
           : 'Publisher inbox'
         const selectedPublisherEmail = selectedConversationMeta?.publisher?.email || selectedConversationMeta?.publisher?.username || ''
         const showManagerThread = isManagerSupport && supportManagerPane === 'thread' && Boolean(selectedSupportId || supportConversation)
+        const showPublisherList = !isManagerSupport && supportManagerPane === 'list'
+        const showPublisherThread = !isManagerSupport && supportManagerPane === 'thread'
         const clock = supportClockMs || Date.now()
 
         const renderConversationRow = (
@@ -5544,6 +5583,31 @@ export default function DashboardOverview() {
           )
         }
 
+        const renderPublisherThreadRow = (conversation: SupportConversationRecord) => {
+          const latest = conversation.messages[conversation.messages.length - 1]
+          return (
+            <button
+              key={conversation.id}
+              type="button"
+              className={styles.supportMessengerThreadRow}
+              onClick={() => openPublisherConversation(conversation.id)}
+            >
+              <span className={styles.supportMessengerThreadLogo} aria-hidden="true">a</span>
+              <span className={styles.supportMessengerThreadCopy}>
+                <span className={styles.supportMessengerThreadTitleRow}>
+                  <strong>{supportConversationTitle(conversation)}</strong>
+                  <time dateTime={latest?.createdAt || conversation.updatedAt}>
+                    {formatSupportTime(latest?.createdAt || conversation.updatedAt, clock)}
+                  </time>
+                </span>
+                <span className={styles.supportMessengerThreadPreview}>
+                  {supportConversationPreview(conversation)}
+                </span>
+              </span>
+            </button>
+          )
+        }
+
         return (
           <div
             className={`${styles.supportMessenger} ${isManagerSupport ? styles.supportMessengerManager : ''}`}
@@ -5564,7 +5628,14 @@ export default function DashboardOverview() {
                     <p>
                       {isManagerSupport
                         ? (supportFirstName ? `Hi ${supportFirstName},` : 'Welcome back,')
-                        : <>Hi {supportFirstName || 'there'} <span aria-hidden="true">👋</span></>}
+                        : (
+                          <>
+                            Hi {supportFirstName || 'there'}{' '}
+                            <span className={styles.supportMessengerWave} aria-hidden="true">
+                              👋
+                            </span>
+                          </>
+                        )}
                     </p>
                     <h2>{isManagerSupport ? 'Your publisher inbox' : 'How can we help?'}</h2>
                   </div>
@@ -5683,12 +5754,43 @@ export default function DashboardOverview() {
                       }))}
                     </div>
                   </>
+                ) : showPublisherList ? (
+                  <>
+                    <header className={styles.supportMessengerMessagesListHeader}>
+                      <strong>Messages</strong>
+                      <button type="button" className={styles.supportMessengerCloseDark} aria-label="Close support" onClick={closeSupportMessenger}>
+                        <X size={18} strokeWidth={2.25} />
+                      </button>
+                    </header>
+                    <div className={styles.supportMessengerMessagesList} aria-label="Your conversations">
+                      {supportLoading && !orderedConversations.length ? (
+                        <p className={styles.supportMessengerEmpty}>Loading messages…</p>
+                      ) : null}
+                      {!supportLoading && !orderedConversations.length ? (
+                        <div className={styles.supportMessengerWelcome}>
+                          <p>No messages yet</p>
+                          <p>Send us a message and we typically reply in a few minutes.</p>
+                        </div>
+                      ) : null}
+                      {orderedConversations.map((conversation) => renderPublisherThreadRow(conversation))}
+                    </div>
+                    <div className={styles.supportMessengerMessagesCtaWrap}>
+                      <button type="button" className={styles.supportMessengerMessagesCta} onClick={openSupportCompose}>
+                        <span>Send us a message</span>
+                        <span className={styles.supportMessengerMessagesCtaIcon} aria-hidden="true">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M5 12h12.5M13.5 7l5.5 5-5.5 5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <>
-                    <header className={`${styles.supportMessengerMessagesHeader} ${isManagerSupport ? styles.supportMessengerThreadHeader : ''}`}>
+                    <header className={`${styles.supportMessengerMessagesHeader} ${isManagerSupport || showPublisherThread ? styles.supportMessengerThreadHeader : ''}`}>
                       <div className={styles.supportMessengerThreadHeading}>
-                        {isManagerSupport ? (
-                          <button type="button" className={styles.supportMessengerBack} onClick={backToManagerInbox} aria-label="Back to inbox">
+                        {(isManagerSupport || showPublisherThread) ? (
+                          <button type="button" className={styles.supportMessengerBack} onClick={backToManagerInbox} aria-label="Back to messages">
                             ‹
                           </button>
                         ) : null}
@@ -5698,11 +5800,17 @@ export default function DashboardOverview() {
                           </span>
                         ) : null}
                         <div>
-                          <strong>{isManagerSupport ? selectedPublisherName : 'Messages'}</strong>
+                          <strong>
+                            {isManagerSupport
+                              ? selectedPublisherName
+                              : (supportComposerNew
+                                ? 'New message'
+                                : (selectedConversationMeta ? supportConversationTitle(selectedConversationMeta) : 'Messages'))}
+                          </strong>
                           <span>
                             {isManagerSupport
                               ? (selectedPublisherEmail || 'Publisher conversation')
-                              : (supportConversation?.manager?.fullName || 'John')}
+                              : (supportConversation?.manager?.fullName || 'Affmine Support')}
                           </span>
                         </div>
                       </div>
@@ -5712,7 +5820,7 @@ export default function DashboardOverview() {
                     </header>
 
                     <div className={styles.supportMessengerThread} ref={supportPopupThreadRef}>
-                      {supportLoading && !(supportConversation?.messages.length) ? (
+                      {supportLoading && !(supportConversation?.messages.length) && !supportComposerNew ? (
                         <p className={styles.supportMessengerEmpty}>Loading messages…</p>
                       ) : null}
                       {!supportLoading && !(supportConversation?.messages.length) ? (
@@ -5792,13 +5900,20 @@ export default function DashboardOverview() {
                 type="button"
                 className={`${styles.supportMessengerTab} ${supportMessengerTab === 'messages' ? styles.supportMessengerTabActive : ''}`}
                 onClick={() => {
-                  if (isManagerSupport) setSupportManagerPane('list')
+                  setSupportManagerPane('list')
+                  setSupportComposerNew(false)
                   setSupportMessengerTab('messages')
                 }}
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M5 6.6A1.85 1.85 0 0 1 6.85 4.75h10.3A1.85 1.85 0 0 1 19 6.6v7.05a1.85 1.85 0 0 1-1.85 1.85H10.2L6.2 18.7c-.5.35-1.2-.02-1.2-.62V6.6Z" stroke="currentColor" strokeWidth="1.85" strokeLinejoin="round" />
-                </svg>
+                {supportMessengerTab === 'messages' ? (
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M5.1 5.2A2.1 2.1 0 0 1 7.2 3.1h9.6a2.1 2.1 0 0 1 2.1 2.1v7.2a2.1 2.1 0 0 1-2.1 2.1H10.3l-3.7 2.7c-.55.4-1.3-.05-1.3-.72V5.2Z" />
+                  </svg>
+                ) : (
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M5 6.6A1.85 1.85 0 0 1 6.85 4.75h10.3A1.85 1.85 0 0 1 19 6.6v7.05a1.85 1.85 0 0 1-1.85 1.85H10.2L6.2 18.7c-.5.35-1.2-.02-1.2-.62V6.6Z" stroke="currentColor" strokeWidth="1.85" strokeLinejoin="round" />
+                  </svg>
+                )}
                 <span>
                   Messages
                   {isManagerSupport && waitingConversations.length ? (
