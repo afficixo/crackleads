@@ -341,22 +341,13 @@ type PublisherAccountRecord = {
 }
 
 const newsItems = [
-  { title: 'OkWow Offers Added', body: 'New offers are available with exclusive optimizations and payouts. More rewards and job offers are on the way.' },
-  { title: 'New Rewards Offers Added', body: 'Explore recently added rewards offers with strong potential across multiple regions.' },
-  { title: 'New Job Offers Added', body: 'Discover the latest job offers and contact our team if you need help finding the right fit.' },
-  { title: 'New HOT Offers', body: 'New top-performing US offers are available. Reach out to your affiliate manager for recommendations.' },
-  { title: 'Happy Holidays!', body: 'Thank you for being part of our network. Our team is available if you need assistance.' },
-  { title: 'Top performing Sweepstakes', body: 'New sweepstakes campaigns are available for UK, DE, and FR.' },
-  { title: 'New surveys', body: 'We are testing new exclusive campaigns and will share updates as they become available.' },
-  { title: 'Offerwall update', body: 'The surveys experience has received several improvements.' },
+  { title: 'Welcome', body: 'Your catalog is ready. Add offers from Campaigns or Incentive Offers to start promoting.' },
+  { title: 'Need help?', body: 'Contact your affiliate manager anytime if you need assistance with offers or payouts.' },
 ]
 
-/** Affmine dashboard Typed.js strings (network.affmine.com) */
+/** Dashboard topbar ticker strings */
 const topbarUpdateStrings = [
-  'Top performing <b>Job offers</b> have been added.',
-  'Our <b>Job offers</b> are optimized for best EPC and Conversion Rate.',
-  'Hundreds of CPI/CPE offers available in <b>Incentive Tools</b> area.',
-  'Top performing BizOpp and Jobs offers for US are available.',
+  'Add offers from <b>Campaigns</b> or <b>Incentive Offers</b>.',
   'Contact us if you want a specific offer or need help.',
   'Our team is available 24/7 to help you.',
 ]
@@ -395,50 +386,6 @@ function sliceHtmlByVisibleChars(html: string, charCount: number) {
     result += `</${openTags[t]}>`
   }
   return result
-}
-
-const seedCampaignAddedAt: Record<string, string> = {
-  '35682': '2026-09-29T00:00:00.000Z',
-  '35333': '2026-09-16T00:00:00.000Z',
-  '35332': '2026-09-16T00:00:00.000Z',
-  '34909': '2026-09-01T00:00:00.000Z',
-  '34009': '2026-07-31T00:00:00.000Z',
-  '34008': '2026-07-31T00:00:00.000Z',
-  '34007': '2026-07-31T00:00:00.000Z',
-  '34006': '2026-07-31T00:00:00.000Z',
-  '34005': '2026-07-31T00:00:00.000Z',
-  '34004': '2026-07-31T00:00:00.000Z',
-  '34003': '2026-07-31T00:00:00.000Z',
-  '34002': '2026-07-31T00:00:00.000Z',
-  '34001': '2026-07-31T00:00:00.000Z',
-  '34000': '2026-07-31T00:00:00.000Z',
-  '33999': '2026-07-31T00:00:00.000Z',
-  '33998': '2026-07-31T00:00:00.000Z',
-  '33617': '2026-07-13T00:00:00.000Z',
-  '33616': '2026-07-11T00:00:00.000Z',
-  '33615': '2026-07-11T00:00:00.000Z',
-  '33614': '2026-07-11T00:00:00.000Z',
-  // Incentive catalog added dates (newest first in Campaign Updates)
-  '35822': '2026-11-08T00:00:00.000Z',
-  '36756': '2026-11-06T00:00:00.000Z',
-  '35594': '2026-11-04T00:00:00.000Z',
-  '34928': '2026-11-02T00:00:00.000Z',
-  '35241': '2026-10-28T00:00:00.000Z',
-  '35151': '2026-10-27T00:00:00.000Z',
-  '35150': '2026-10-26T00:00:00.000Z',
-  '35153': '2026-10-25T00:00:00.000Z',
-  '35152': '2026-10-24T00:00:00.000Z',
-  '34927': '2026-10-20T00:00:00.000Z',
-  '34929': '2026-10-18T00:00:00.000Z',
-  '34010': '2026-10-12T00:00:00.000Z',
-  '33804': '2026-10-10T00:00:00.000Z',
-  '33866': '2026-10-09T00:00:00.000Z',
-  '33745': '2026-10-08T00:00:00.000Z',
-  '32703': '2026-10-05T00:00:00.000Z',
-  '4424': '2026-09-20T00:00:00.000Z',
-  '4415': '2026-09-18T00:00:00.000Z',
-  '4394': '2026-09-15T00:00:00.000Z',
-  '4392': '2026-09-14T00:00:00.000Z',
 }
 
 function CampaignUpdateFlag({ geo, id }: { geo: string; id: string }) {
@@ -605,53 +552,9 @@ const campaignCountryLabels: Record<string, string> = {
   BE: 'Belgium',
 }
 
-const seedCampaignOffers: CampaignOffer[] = [
-  { id: '35682', name: 'Rewards US - iPhone 18 Pro', payout: 2, country: 'US', action: 'Pending', description: 'Get $1000 Towards iPhone 18 Pro!', isHot: true, status: 'ACTIVE', device: [...allOfferDevices], requiresApproval: true, category: 'E-mail Submit', imageSource: '/affmine/campaigns/35682.png' },
-  { id: '35333', name: 'DailyJobs - Kelly Services Jobs - (US)', payout: 1.3, country: 'US', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/35333.png' },
-  { id: '35332', name: 'JobsListings - Dollar Tree Jobs - (US)', payout: 2, country: 'US', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/35332.png' },
-  { id: '34909', name: 'Rewards US - Grocery $750', payout: 2, country: 'US', action: 'Pending', device: [...allOfferDevices], requiresApproval: true, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34909.png' },
-  { id: '34009', name: 'Rewards UK - Revolut £500', payout: 2, country: 'GB', action: 'View', device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34009.png' },
-  { id: '34008', name: 'Rewards UK - Shein £750', payout: 2, country: 'GB', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34008.png' },
-  { id: '34007', name: 'Rewards UK - Tesco £750', payout: 2, country: 'GB', action: 'Pending', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34007.png' },
-  { id: '34006', name: 'Rewards UK - Asda £750', payout: 2, country: 'GB', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34006.png' },
-  { id: '34005', name: 'Rewards AU - Product Reviewer Shein $750', payout: 2, country: 'AU', action: 'Pending', device: [...allOfferDevices], requiresApproval: true, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34005.png' },
-  { id: '34004', name: 'Rewards AU - Kmart $500', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34004.png' },
-  { id: '34003', name: 'Rewards AU - Paypal $1000', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34003.png' },
-  { id: '34002', name: 'Rewards AU - Mecca $750', payout: 2, country: 'AU', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34002.png' },
-  { id: '34001', name: 'Rewards CA - Shein $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34001.png' },
-  { id: '34000', name: 'Rewards CA - No Frills $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/34000.png' },
-  { id: '33999', name: 'Rewards CA - PayPal $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33999.png' },
-  { id: '33998', name: 'Rewards CA - Costco $750', payout: 2, country: 'CA', action: 'Apply', device: [...allOfferDevices], requiresApproval: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33998.png' },
-  { id: '33617', name: 'Rewards US - Costco $100', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33617.png' },
-  { id: '33616', name: 'Rewards US - PayPal $1000', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33616.png' },
-  { id: '33615', name: 'Rewards US - Amazon $1000', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false, isHot: true, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33615.png' },
-  { id: '33614', name: 'Rewards US - Cash $750', payout: 3, country: 'US', action: 'View', device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', category: 'E-mail Submit', imageSource: '/affmine/campaigns/33614.png' },
-]
-
-/** Offers reserved for Content Locker / OfferWall (Affmine Incentive Offers catalog). */
-const seedIncentiveOffers: CampaignOffer[] = [
-  { id: '35241', name: 'Ipsos iSay - SOI - DK', payout: 1.42, country: 'DK', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, isHot: true, status: 'ACTIVE', description: 'Complete profile registration and mobile verification.', imageSource: '/affmine/preview_i/35241.png' },
-  { id: '35151', name: 'Ipsos iSay - SOI - NO', payout: 1.19, country: 'NO', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', description: 'Complete profile registration and mobile verification.', imageSource: '/affmine/preview_i/35151.png' },
-  { id: '35150', name: 'Ipsos iSay - SOI - NL', payout: 1.09, country: 'NL', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', description: 'Complete profile registration and mobile verification.', imageSource: '/affmine/preview_i/35150.png' },
-  { id: '33804', name: 'Photobucket - iPhone/iPad - CPE - US,CA', payout: 1.13, country: 'US', countries: ['US', 'CA'], action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/33804.png' },
-  { id: '33866', name: 'Photobucket - iPhone/iPad - CPE - CA', payout: 1.13, country: 'CA', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/33866.png' },
-  { id: '33745', name: 'Photobucket - iPhone/iPad - CPE - US', payout: 1.13, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/33745.png' },
-  { id: '34010', name: 'Photobucket - iPhone/iPad - CPE - CA,AU,GB', payout: 1.13, country: 'CA', countries: ['CA', 'AU', 'GB'], action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/34010.png' },
-  { id: '34928', name: 'Mistplay - iPhone/iPad - CPE - US', payout: 3.65, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, isHot: true, status: 'ACTIVE', imageSource: '/affmine/preview_i/34928.png' },
-  { id: '32703', name: 'Playtest Pro - iPhone - CPE - US', payout: 7.84, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/32703.png' },
-  { id: '35594', name: 'Groupsy - iPhone/iPad - CPE - US', payout: 1.13, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/35594.png' },
-  { id: '4424', name: 'Rewards US - Cash $750 - (US)', payout: 2, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['CPL', 'SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/4424.png' },
-  { id: '35153', name: 'Ipsos iSay - SOI - SE', payout: 0.95, country: 'SE', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/35153.png' },
-  { id: '34927', name: 'Reco Social - iPhone/iPad - CPE - US', payout: 1.73, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/34927.png' },
-  { id: '35822', name: 'Copper - iPhone/iPad - CPE - US', payout: 15.6, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPE'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, isHot: true, status: 'ACTIVE', imageSource: '/affmine/preview_i/35822.png' },
-  { id: '34929', name: 'Midnite - iPhone/iPad - CPI - GB', payout: 0.39, country: 'GB', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPI'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/34929.png' },
-  { id: '35152', name: 'Ipsos iSay - SOI - BE', payout: 0.84, country: 'BE', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/35152.png' },
-  { id: '36756', name: 'SpinQuest Casino - iPhone/iPad - CPI - US', payout: 1.03, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'App Install', offerTypes: ['CPI'], device: ['iPhone', 'iPad', 'Mobile (Other)'], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/36756.png' },
-  { id: '4392', name: 'NCC - Dyson Supersonic - Incent (UK)', payout: 2, country: 'GB', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['CPL', 'SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/4392.png' },
-  { id: '4394', name: 'NCC - Primark £250 - Incent (UK)', payout: 2, country: 'GB', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['CPL', 'SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/4394.png' },
-  { id: '4415', name: 'RZUSA - KFC $500 - Incent (US)', payout: 2, country: 'US', action: 'View', placement: 'INCENTIVE', category: 'E-mail Submit', offerTypes: ['CPL', 'SOI'], device: [...allOfferDevices], requiresApproval: false, status: 'ACTIVE', imageSource: '/affmine/preview_i/4415.png' },
-]
-
+/** Catalog starts empty — only manager-added offers (localStorage) appear. */
+const seedCampaignOffers: CampaignOffer[] = []
+const seedIncentiveOffers: CampaignOffer[] = []
 const allSeedCampaignOffers = [...seedCampaignOffers, ...seedIncentiveOffers]
 
 const mergeCampaignOverride = (source: CampaignOffer, override?: CampaignOffer): CampaignOffer => {
@@ -978,46 +881,48 @@ export default function DashboardOverview() {
       }
       const savedOverrides = window.localStorage.getItem(campaignOverridesStorageKey)
       const parsedOverrides = savedOverrides ? JSON.parse(savedOverrides) as unknown : []
+      const savedOffersForActive = Array.isArray(parsedOffers)
+        ? parsedOffers.filter((offer): offer is CampaignOffer => (
+          typeof offer?.id === 'string'
+          && typeof offer?.name === 'string'
+          && typeof offer?.payout === 'number'
+          && typeof offer?.country === 'string'
+        ))
+        : []
+      const realOfferIdSet = new Set(savedOffersForActive.map((offer) => offer.id))
       if (Array.isArray(parsedOverrides)) {
-        const cleanedOverrides = parsedOverrides
-          .filter((offer): offer is CampaignOffer => (
-            typeof offer?.id === 'string'
-            && typeof offer?.name === 'string'
-            && typeof offer?.payout === 'number'
-            && typeof offer?.country === 'string'
-          ))
-          .map((offer) => {
-            const seed = allSeedCampaignOffers.find((candidate) => candidate.id === offer.id)
-            if (
-              seed?.placement === 'INCENTIVE'
-              && seed.imageSource?.includes('/affmine/preview_i/')
-              && offer.imageSource?.includes('/affmine/campaigns/')
-            ) {
-              return { ...offer, imageSource: seed.imageSource, countries: offer.countries ?? seed.countries }
-            }
-            return offer
-          })
+        // Drop overrides for removed demo/seed catalogs — only keep edits to real custom offers.
+        const cleanedOverrides = parsedOverrides.filter((offer): offer is CampaignOffer => (
+          typeof offer?.id === 'string'
+          && realOfferIdSet.has(offer.id)
+          && typeof offer?.name === 'string'
+          && typeof offer?.payout === 'number'
+          && typeof offer?.country === 'string'
+        ))
         setManagedCampaignOverrides(cleanedOverrides)
         window.localStorage.setItem(campaignOverridesStorageKey, JSON.stringify(cleanedOverrides))
       }
-      const savedDeletions = window.localStorage.getItem(deletedCampaignsStorageKey)
-      const parsedDeletions = savedDeletions ? JSON.parse(savedDeletions) as unknown : []
-      if (Array.isArray(parsedDeletions)) setDeletedCampaignIds(parsedDeletions.filter((id): id is string => typeof id === 'string'))
+      // Demo seed deletions are obsolete once the hardcoded catalog is empty.
+      setDeletedCampaignIds([])
+      window.localStorage.setItem(deletedCampaignsStorageKey, JSON.stringify([]))
+      const realIncentiveIdSet = new Set(
+        savedOffersForActive
+          .filter((offer) => offer.placement === 'INCENTIVE')
+          .map((offer) => offer.id),
+      )
       const savedActiveIncentive = window.localStorage.getItem(activeIncentiveOffersStorageKey)
       const parsedActiveIncentive = savedActiveIncentive ? JSON.parse(savedActiveIncentive) as unknown : null
-      const defaultActiveIncentiveIds = seedIncentiveOffers.map((offer) => offer.id)
-      const seedIncentiveIdSet = new Set(defaultActiveIncentiveIds)
       if (Array.isArray(parsedActiveIncentive)) {
-        const kept = parsedActiveIncentive.filter((id): id is string => typeof id === 'string' && seedIncentiveIdSet.has(id))
-        // Stale or empty saved lists fall back to Affmine-style all-active defaults.
-        const nextActive = kept.length > 0 ? kept : defaultActiveIncentiveIds
+        // Keep only IDs that still exist as real user-added incentive offers.
+        const nextActive = parsedActiveIncentive.filter((id): id is string => (
+          typeof id === 'string' && realIncentiveIdSet.has(id)
+        ))
         setActiveIncentiveOfferIds(nextActive)
-        if (kept.length === 0) {
-          window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(nextActive))
-        }
+        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(nextActive))
       } else {
-        setActiveIncentiveOfferIds(defaultActiveIncentiveIds)
-        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(defaultActiveIncentiveIds))
+        const nextActive = [...realIncentiveIdSet]
+        setActiveIncentiveOfferIds(nextActive)
+        window.localStorage.setItem(activeIncentiveOffersStorageKey, JSON.stringify(nextActive))
       }
 
       const savedLockers = window.localStorage.getItem(contentLockersStorageKey)
@@ -1028,7 +933,7 @@ export default function DashboardOverview() {
       setCustomCampaignOffers([])
       setManagedCampaignOverrides([])
       setDeletedCampaignIds([])
-      setActiveIncentiveOfferIds(seedIncentiveOffers.map((offer) => offer.id))
+      setActiveIncentiveOfferIds([])
       setContentLockers([])
       setOfferwalls([])
     }
@@ -1283,11 +1188,13 @@ export default function DashboardOverview() {
   }, [campaignIndex, previousCampaignIndex])
 
   useEffect(() => {
-    const activeGroup = menuGroups.find(({ items }) => items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail: seedIncentiveOfferIdSet.has(pathname.split('/').pop() || '') })))?.label
+    const detailId = pathname.split('/').pop() || ''
+    const incentiveDetail = customCampaignOffers.some((offer) => offer.id === detailId && offer.placement === 'INCENTIVE')
+    const activeGroup = menuGroups.find(({ items }) => items.some((item) => isMenuItemActive(pathname, item.href, { incentiveDetail })))?.label
     if (activeGroup) {
       setOpenGroups((groups) => groups.includes(activeGroup) ? groups : [...groups, activeGroup])
     }
-  }, [pathname])
+  }, [pathname, customCampaignOffers])
 
   useEffect(() => {
     setMobileNavOpen(false)
@@ -1749,7 +1656,7 @@ export default function DashboardOverview() {
       isHot: existingOffer?.isHot ?? false,
       status: existingOffer?.status ?? 'ACTIVE',
       placement,
-      createdAt: existingOffer?.createdAt ?? seedCampaignAddedAt[id] ?? new Date().toISOString(),
+      createdAt: existingOffer?.createdAt ?? new Date().toISOString(),
     }
     try {
       if (editingOfferId && allSeedCampaignOffers.some((campaign) => campaign.id === editingOfferId)) {
@@ -1851,7 +1758,7 @@ export default function DashboardOverview() {
     .map((campaign) => ({
       ...campaign,
       geo: campaign.country,
-      createdAt: campaign.createdAt ?? seedCampaignAddedAt[campaign.id] ?? '1970-01-01T00:00:00.000Z',
+      createdAt: campaign.createdAt ?? '1970-01-01T00:00:00.000Z',
     }))
     .filter((campaign) => campaign.status !== 'PAUSED')
     .sort((first, second) => {
@@ -2635,7 +2542,7 @@ export default function DashboardOverview() {
                         <input
                           name="offerName"
                           type="text"
-                          placeholder="Mistplay - iPhone/iPad - CPE - US"
+                          placeholder="My App - iPhone/iPad - CPE - US"
                           value={offerDraft.name}
                           onChange={(event) => updateOfferDraft('name', event.target.value)}
                           required
@@ -2942,7 +2849,7 @@ export default function DashboardOverview() {
                       <input name="offerId" type="text" inputMode="numeric" pattern="[0-9]+" value={offerDraft.id} onChange={(event) => updateOfferDraft('id', event.target.value)} readOnly={Boolean(editingOfferId)} required />
                     </label>
                     <label className={styles.addOfferField}>Offer name
-                      <input name="offerName" type="text" placeholder="Rewards US - iPhone 18 Pro" value={offerDraft.name} onChange={(event) => updateOfferDraft('name', event.target.value)} required />
+                      <input name="offerName" type="text" placeholder="Offer name" value={offerDraft.name} onChange={(event) => updateOfferDraft('name', event.target.value)} required />
                     </label>
                     <label className={styles.addOfferField}>Payout
                       <input name="payout" type="number" min="0.01" step="0.01" value={offerDraft.payout} onChange={(event) => updateOfferDraft('payout', event.target.value)} required />
@@ -3697,7 +3604,7 @@ export default function DashboardOverview() {
                         <div className={styles.trackingBadgeSuccess}>NEW tracking link - increased performance</div>
                         <textarea aria-label="New tracking URL" readOnly value={generatedTrackingUrl} onClick={(event) => event.currentTarget.select()} />
                         <div className={styles.trackingBadgePrimary}>OLD tracking link</div>
-                        <input aria-label="Old tracking URL" type="text" readOnly value="https://go2affm.com/c/?p=63460&o=35682" onClick={(event) => event.currentTarget.select()} />
+                        <input aria-label="Old tracking URL" type="text" readOnly value={`https://go2affm.com/c/?p=63460&o=${detailedCampaign.id}`} onClick={(event) => event.currentTarget.select()} />
                         <p>You can append subIDs to this URL for tracking purposes, for example add <code>&amp;s1=1234</code> where 1234 is your unique tracking ID. If you have <Link href="/tools/postback">postback</Link> set up, once a lead is generated, this information will be sent according to your postback setup.</p>
                         <p>Supported subIDs: <code>&amp;s1=</code>, <code>&amp;s2=</code>, <code>&amp;s3=</code>, <code>&amp;s4=</code></p>
                       </div>

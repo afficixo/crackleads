@@ -74,9 +74,13 @@ export default function IncentiveWidget({ kind, toolId, seedOffers }: IncentiveW
     const nextTool = loadTool(kind, toolId)
     setTool(nextTool)
 
+    const catalogAll = mergeOffers(seedOffers)
     const activeIds = readJsonArray<string>(activeIncentiveOffersStorageKey)
-    const activeSet = new Set(activeIds.length ? activeIds : seedOffers.map((offer) => offer.id))
-    const catalog = mergeOffers(seedOffers).filter((offer) => activeSet.has(offer.id))
+    const knownIds = new Set(catalogAll.map((offer) => offer.id))
+    const savedActive = activeIds.filter((id) => knownIds.has(id))
+    // If nothing is activated yet, show every real incentive offer in the catalog.
+    const activeSet = new Set(savedActive.length ? savedActive : catalogAll.map((offer) => offer.id))
+    const catalog = catalogAll.filter((offer) => activeSet.has(offer.id))
     const selected = nextTool?.selectedOfferIds?.length
       ? catalog.filter((offer) => nextTool.selectedOfferIds.includes(offer.id))
       : catalog
