@@ -3,7 +3,10 @@ import { getCorsHeaders } from '@/config/cors'
 import { getTokenFromCookie, getUserFromToken } from '@/lib/auth'
 import {
   type CampaignOfferInput,
+  LEGACY_AFFMINE_DEMO_OFFER_IDS,
+  isLegacyAffmineDemoOfferId,
   normalizeCampaignOfferInput,
+  purgeLegacyAffmineDemoOffers,
   toCampaignOfferRecord,
   toPrismaCreateData,
 } from '@/lib/campaign-offers'
@@ -32,10 +35,14 @@ export async function GET(request: Request) {
   const placementFilter = placement === 'INCENTIVE' || placement === 'STANDARD' ? placement : undefined
 
   try {
+    // Drop former hardcoded Affmine demo rows so only manager-added offers remain.
+    await purgeLegacyAffmineDemoOffers(prisma)
+
     const offers = await prisma.campaignOffer.findMany({
       where: {
         ...(placementFilter ? { placement: placementFilter } : {}),
         ...(user.role === 'PUBLISHER' ? { status: 'ACTIVE' } : {}),
+        id: { notIn: [...LEGACY_AFFMINE_DEMO_OFFER_IDS] },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 1000,
@@ -78,7 +85,8 @@ export async function POST(request: Request) {
           return single ? [single] : []
         })()
 
-    if (!inputs.length) {
+    const allowedInputs = inputs.filter((input) => !isLegacyAffmineDemoOfferId(input.id))
+    if (!allowedInputs.length) {
       return NextResponse.json(
         { error: 'Valid offer details are required' },
         { status: 400, headers: getCorsHeaders(origin) },
@@ -86,7 +94,7 @@ export async function POST(request: Request) {
     }
 
     const created = []
-    for (const input of inputs) {
+    for (const input of allowedInputs) {
       const data = toPrismaCreateData(input, user.id)
       const row = await prisma.campaignOffer.upsert({
         where: { id: input.id },

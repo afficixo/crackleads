@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getCorsHeaders } from '@/config/cors'
-import { toCampaignOfferRecord } from '@/lib/campaign-offers'
+import {
+  LEGACY_AFFMINE_DEMO_OFFER_IDS,
+  purgeLegacyAffmineDemoOffers,
+  toCampaignOfferRecord,
+} from '@/lib/campaign-offers'
 import { prisma } from '@/lib/db/prisma'
 
 /** Public catalog for Content Locker / OfferWall embeds (no auth). */
@@ -11,11 +15,14 @@ export async function GET(request: Request) {
   const placementFilter = placement === 'INCENTIVE' || placement === 'STANDARD' ? placement : 'INCENTIVE'
 
   try {
+    await purgeLegacyAffmineDemoOffers(prisma)
+
     const offers = await prisma.campaignOffer.findMany({
       where: {
         placement: placementFilter,
         status: 'ACTIVE',
         ...(placementFilter === 'INCENTIVE' ? { incentiveActive: true } : {}),
+        id: { notIn: [...LEGACY_AFFMINE_DEMO_OFFER_IDS] },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 500,

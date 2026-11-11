@@ -73,6 +73,7 @@ import {
   buildPublicTrackingUrl,
   getTrackingDomainOrigin,
 } from '@/lib/tracking'
+import { withoutLegacyAffmineDemoOffers } from '@/lib/campaign-offers'
 import { PUBLISHER_POSTBACK_URL_EXAMPLE } from '@/lib/postback-tokens'
 import ReportDateRangePicker from './ReportDateRangePicker'
 import styles from './Dashboard.module.css'
@@ -1210,10 +1211,12 @@ export default function DashboardOverview() {
         const response = await fetch('/api/campaigns', { credentials: 'include', cache: 'no-store' })
         if (!response.ok) throw new Error('catalog_unavailable')
         const payload = await response.json() as { offers?: CampaignOffer[] }
-        const remoteOffers = Array.isArray(payload.offers) ? payload.offers.filter(isOffer) : []
+        const remoteOffers = withoutLegacyAffmineDemoOffers(
+          Array.isArray(payload.offers) ? payload.offers.filter(isOffer) : [],
+        )
 
-        // One-time migrate manager browser-local offers into the shared DB catalog.
-        const localOffers = readLocalOffers()
+        // Migrate only manager-created local offers (never the old Affmine demo catalog).
+        const localOffers = withoutLegacyAffmineDemoOffers(readLocalOffers())
         if (!remoteOffers.length && localOffers.length) {
           const migrate = await fetch('/api/campaigns', {
             method: 'POST',
@@ -1230,7 +1233,11 @@ export default function DashboardOverview() {
           })
           if (migrate.ok) {
             const migrated = await migrate.json() as { offers?: CampaignOffer[] }
-            if (!cancelled) applyOffers(Array.isArray(migrated.offers) ? migrated.offers.filter(isOffer) : localOffers)
+            if (!cancelled) {
+              applyOffers(withoutLegacyAffmineDemoOffers(
+                Array.isArray(migrated.offers) ? migrated.offers.filter(isOffer) : localOffers,
+              ))
+            }
             return
           }
         }
@@ -1238,7 +1245,7 @@ export default function DashboardOverview() {
         if (!cancelled) applyOffers(remoteOffers)
       } catch {
         // Fall back to local-only so the manager still sees what they just created offline.
-        if (!cancelled) applyOffers(readLocalOffers())
+        if (!cancelled) applyOffers(withoutLegacyAffmineDemoOffers(readLocalOffers()))
       }
     }
 

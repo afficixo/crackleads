@@ -65,6 +65,34 @@ const ACTIONS = new Set(['Apply', 'Pending', 'View'])
 const STATUSES = new Set(['ACTIVE', 'PAUSED'])
 const PLACEMENTS = new Set(['STANDARD', 'INCENTIVE'])
 
+/** Affmine demo catalog IDs formerly hardcoded in the app — never rehydrate these. */
+export const LEGACY_AFFMINE_DEMO_OFFER_IDS = [
+  '4392', '4394', '4415', '4424', '32703', '33614', '33615', '33616', '33617',
+  '33745', '33804', '33866', '33998', '33999', '34000', '34001', '34002', '34003',
+  '34004', '34005', '34006', '34007', '34008', '34009', '34010', '34909', '34927',
+  '34928', '34929', '35150', '35151', '35152', '35153', '35241', '35332', '35333',
+  '35594', '35682', '35822', '36756',
+] as const
+
+const legacyDemoOfferIdSet = new Set<string>(LEGACY_AFFMINE_DEMO_OFFER_IDS)
+
+export function isLegacyAffmineDemoOfferId(id: string): boolean {
+  return legacyDemoOfferIdSet.has(id)
+}
+
+export function withoutLegacyAffmineDemoOffers<T extends { id: string }>(offers: T[]): T[] {
+  return offers.filter((offer) => !legacyDemoOfferIdSet.has(offer.id))
+}
+
+export async function purgeLegacyAffmineDemoOffers(
+  db: { campaignOffer: { deleteMany: (args: { where: { id: { in: string[] } } }) => Promise<unknown> } },
+) {
+  if (!LEGACY_AFFMINE_DEMO_OFFER_IDS.length) return
+  await db.campaignOffer.deleteMany({
+    where: { id: { in: [...LEGACY_AFFMINE_DEMO_OFFER_IDS] } },
+  })
+}
+
 export function normalizeCampaignOfferInput(body: unknown): CampaignOfferInput | null {
   if (!body || typeof body !== 'object') return null
   const raw = body as Record<string, unknown>

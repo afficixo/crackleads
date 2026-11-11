@@ -15,6 +15,7 @@ import {
   contentLockersStorageKey,
   offerwallsStorageKey,
 } from '@/lib/incentive-tools'
+import { withoutLegacyAffmineDemoOffers } from '@/lib/campaign-offers'
 import styles from './IncentiveWidget.module.css'
 
 type SeedOffer = IncentiveWidgetOffer & { placement?: string; status?: string }
@@ -25,14 +26,14 @@ type IncentiveWidgetProps = {
   seedOffers: SeedOffer[]
 }
 
-function mergeOffers(seedOffers: SeedOffer[]): IncentiveWidgetOffer[] {
-  const custom = readJsonArray<SeedOffer>(customOffersStorageKey)
+function mergeOffers(seedOffers: SeedOffer[], preferRemoteOnly = false): IncentiveWidgetOffer[] {
+  const custom = preferRemoteOnly ? [] : withoutLegacyAffmineDemoOffers(readJsonArray<SeedOffer>(customOffersStorageKey))
   const overrides = readJsonArray<SeedOffer>(campaignOverridesStorageKey)
   const deleted = new Set(readJsonArray<string>(deletedCampaignsStorageKey))
   const overrideMap = new Map(overrides.map((offer) => [offer.id, offer]))
 
   const byId = new Map<string, SeedOffer>()
-  for (const offer of [...seedOffers, ...custom]) {
+  for (const offer of withoutLegacyAffmineDemoOffers([...seedOffers, ...custom])) {
     if (deleted.has(offer.id)) continue
     const override = overrideMap.get(offer.id)
     byId.set(offer.id, override ? { ...offer, ...override, id: offer.id } : offer)
@@ -75,8 +76,11 @@ export default function IncentiveWidget({ kind, toolId, seedOffers }: IncentiveW
     const nextTool = loadTool(kind, toolId)
     setTool(nextTool)
 
-    const applyCatalog = (remoteOffers: SeedOffer[]) => {
-      const catalogAll = mergeOffers([...seedOffers, ...remoteOffers])
+    const applyCatalog = (remoteOffers: SeedOffer[], preferRemoteOnly = false) => {
+      const catalogAll = mergeOffers(
+        withoutLegacyAffmineDemoOffers([...seedOffers, ...remoteOffers]),
+        preferRemoteOnly,
+      )
       const activeIds = readJsonArray<string>(activeIncentiveOffersStorageKey)
       const knownIds = new Set(catalogAll.map((offer) => offer.id))
       const savedActive = activeIds.filter((id) => knownIds.has(id))
@@ -108,9 +112,10 @@ export default function IncentiveWidget({ kind, toolId, seedOffers }: IncentiveW
         const response = await fetch('/api/campaigns/public?placement=INCENTIVE', { cache: 'no-store' })
         if (!response.ok) throw new Error('public_catalog_unavailable')
         const payload = await response.json() as { offers?: SeedOffer[] }
-        applyCatalog(Array.isArray(payload.offers) ? payload.offers : [])
+        // Prefer DB catalog only so browser-cached Affmine demo offers cannot resurface.
+        applyCatalog(Array.isArray(payload.offers) ? payload.offers : [], true)
       } catch {
-        applyCatalog([])
+        applyCatalog([], true)
       }
     })()
 
